@@ -3,6 +3,8 @@ import { MedicalHistoryController } from '../controllers/MedicalHistoryControlle
 import { authenticate, authorize } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { medicalHistoryValidation } from '../validators/medicalHistoryValidation';
+import { cacheMiddleware } from '../middleware/cache';
+import { invalidateCache } from '../utils/cacheInvalidation';
 
 const router = Router();
 const controller = new MedicalHistoryController();
@@ -26,6 +28,7 @@ router.get(
     '/:patientId',
     authenticate,
     authorize(['doctor', 'nurse']),
+    cacheMiddleware({ ttl: 600, keyPrefix: 'medical-history' }), // 10 minutes cache
     controller.getPatientHistory
 );
 
@@ -59,7 +62,14 @@ router.post(
     authenticate,
     authorize(['doctor']),
     validate(medicalHistoryValidation.addEvent),
-    controller.addMedicalEvent
+    async (req, res, next) => {
+        try {
+            await controller.addMedicalEvent(req, res, next);
+            await invalidateCache.patientData(req.params.patientId);
+        } catch (error) {
+            next(error);
+        }
+    }
 );
 
 export default router; 
