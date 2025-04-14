@@ -1,0 +1,64 @@
+# x-postman-link: /docs/postman/HealthAssistPro.postman_collection.json
+
+/api/v1/diagnose:
+  post:
+    tags:
+      - Diagnosis
+    summary: Submit patient data for AI diagnosis
+    security:
+      - bearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              patientId:
+                type: string
+              age:
+                type: integer
+              gender:
+                type: string
+              symptoms:
+                type: array
+                items:
+                  type: string
+              medicalHistory:
+                type: array
+                items:
+                  type: string
+              vitals:
+                type: object
+                properties:
+                  temperature:
+                    type: number
+                  heartRate:
+                    type: number
+              notes:
+                type: string
+    responses:
+      200:
+        description: Diagnosis results
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                results:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      condition:
+                        type: string
+                      confidence:
+                        type: number
+                      treatment:
+                        type: array
+                        items:
+                          type: string
+      403:
+        description: Forbidden - Role restricted
+      500:
+        description: AI diagnosis failed

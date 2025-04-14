@@ -1,63 +1,35 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Box, Typography, Button } from '@mui/material';
+
+import React, { Component, ErrorInfo, ReactNode } from "react";
 
 interface Props {
-    children: ReactNode;
+  children: ReactNode;
 }
 
 interface State {
-    hasError: boolean;
-    error?: Error;
+  hasError: boolean;
+  error?: Error;
 }
 
 class ErrorBoundary extends Component<Props, State> {
-    public state: State = {
-        hasError: false
-    };
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false };
+  }
 
-    public static getDerivedStateFromError(error: Error): State {
-        return { hasError: true, error };
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <div className="p-4 text-red-600">Something went wrong. Please try again later.</div>;
     }
-
-    public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        console.error('Uncaught error:', error, errorInfo);
-        // Here you could add error logging service integration
-    }
-
-    private handleReset = () => {
-        this.setState({ hasError: false, error: undefined });
-    };
-
-    public render() {
-        if (this.state.hasError) {
-            return (
-                <Box
-                    display="flex"
-                    flexDirection="column"
-                    alignItems="center"
-                    justifyContent="center"
-                    minHeight="100vh"
-                    p={3}
-                >
-                    <Typography variant="h4" gutterBottom>
-                        Oops! Something went wrong.
-                    </Typography>
-                    <Typography variant="body1" color="text.secondary" mb={3}>
-                        {this.state.error?.message || 'An unexpected error occurred.'}
-                    </Typography>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={this.handleReset}
-                    >
-                        Try Again
-                    </Button>
-                </Box>
-            );
-        }
-
-        return this.props.children;
-    }
+    return this.props.children;
+  }
 }
 
-export default ErrorBoundary; 
+export default ErrorBoundary;
