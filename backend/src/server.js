@@ -10,6 +10,7 @@ const config = require('./config');
 const swaggerSpec = require('./config/swagger');
 const { apiLimiter } = require('./middleware/rateLimit');
 const fs = require('fs');
+<<<<<<< HEAD
 const dotenv = require('dotenv');
 const validateEnv = require('./utils/validateEnv');
 const connectDB = require('./config/database');
@@ -21,6 +22,8 @@ validateEnv();
 
 // Connect to MongoDB
 connectDB();
+=======
+>>>>>>> fbc769ed796143c4abc04f6781c363eadceec3d7
 
 // Initialize express app
 const app = express();
@@ -173,4 +176,12 @@ process.on('SIGTERM', () => {
     });
 });
 
+<<<<<<< HEAD
+=======
+module.exports = app; er.info('MongoDB connection closed');
+        process.exit(0);
+    });
+});
+
+>>>>>>> fbc769ed796143c4abc04f6781c363eadceec3d7
 module.exports = app; 
