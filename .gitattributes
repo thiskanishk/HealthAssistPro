@@ -1,0 +1,43 @@
+# Set default behavior to automatically normalize line endings
+* text=auto
+
+# Shell scripts should use LF
+*.sh text eol=lf
+
+# Docker files should use LF
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+
+# YAML files should use LF
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Config files that run in Linux environments should use LF
+.env* text eol=lf
+*.conf text eol=lf
+.npmrc text eol=lf
+
+# Common text files should use LF
+*.json text eol=lf
+*.md text eol=lf
+*.ts text eol=lf
+*.js text eol=lf
+*.tsx text eol=lf
+*.jsx text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.html text eol=lf
+
+# Binary files should not be modified
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+*.zip binary
+*.pdf binary 

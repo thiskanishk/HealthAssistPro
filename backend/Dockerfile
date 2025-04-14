@@ -69,24 +69,4 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD wget -qO- http://localhost:5000/api/health || exit 1
 
 # Start the app in production mode
-CMD ["npm", "start"]
-
-# Set working directory
-WORKDIR /usr/src/app
-
-# Create volume for logs
-VOLUME [ "/usr/src/app/logs" ]
-
-# Set environment variables
-ENV NODE_ENV=production \
-    PORT=5000
-
-# Expose port
-EXPOSE 5000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=30s \
-  CMD wget --quiet --tries=1 --spider http://localhost:5000/api/health || exit 1
-
-# Start the application
-CMD ["ts-node", "src/server.ts"] 
+CMD ["npm", "start"] 

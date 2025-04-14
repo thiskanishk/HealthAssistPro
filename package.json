@@ -20,7 +20,9 @@
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:build": "docker-compose build",
-    "docker:logs": "docker-compose logs -f"
+    "docker:logs": "docker-compose logs -f",
+    "docker:combined": "docker-compose --profile combined up -d",
+    "docker:separate": "docker-compose --profile separate up -d"
   },
   "engines": {
     "node": ">=14.0.0"

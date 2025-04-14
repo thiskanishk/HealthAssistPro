@@ -1,6 +1,32 @@
 version: '3.8'
 
 services:
+  # Combined application service (alternative to running separate services)
+  app:
+    build:
+      context: .
+      target: production
+    container_name: healthassist-app
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/healthassistpro
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET}
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - mongodb
+    networks:
+      - healthassist-network
+    profiles:
+      - combined
+
   # Backend API service
   backend:
     build:
@@ -30,6 +56,9 @@ services:
       - redis
     networks:
       - healthassist-network
+    profiles:
+      - default
+      - separate
 
   # Frontend service
   frontend:
@@ -52,6 +81,9 @@ services:
       - backend
     networks:
       - healthassist-network
+    profiles:
+      - default
+      - separate
 
   # MongoDB service
   mongodb:
@@ -67,6 +99,10 @@ services:
       - mongodb_data:/data/db
     networks:
       - healthassist-network
+    profiles:
+      - default
+      - separate
+      - combined
 
   # MongoDB Express (Admin Interface)
   mongo-express:
@@ -83,6 +119,9 @@ services:
       - mongodb
     networks:
       - healthassist-network
+    profiles:
+      - default
+      - separate
 
   # Redis service
   redis:
@@ -95,6 +134,9 @@ services:
       - "6379:6379"
     networks:
       - healthassist-network
+    profiles:
+      - default
+      - separate
 
 volumes:
   mongodb_data:
