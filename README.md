@@ -227,7 +227,7 @@ npm run test:e2e
 
 ## 📚 Documentation
 
-- [API Documentation](docs/api/README.md)
+- [API Documentation](docs/API.md)
 - [Architecture Overview](docs/architecture/README.md)
 - [Development Guide](docs/setup/development.md)
 - [Deployment Guide](docs/setup/deployment.md)
@@ -269,4 +269,31 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Technical Support: support@healthassist.pro
 - General Inquiries: contact@healthassist.pro
 - Emergency Support: Available 24/7 at +1-800-HEALTH-PRO
-- Status Page: https://status.healthassist.pro 
+- Status Page: https://status.healthassist.pro
+
+# API Documentation
+
+For detailed API documentation, please refer to:
+
+1. [API Documentation](docs/API.md) - Comprehensive API documentation
+2. [OpenAPI Specification](src/docs/swagger.yaml) - OpenAPI/Swagger specification
+3. [Postman Collection](docs/Health_Assist_Pro.postman_collection.json) - Ready-to-use Postman collection
+
+## Quick Start with API
+
+1. Import the Postman collection
+2. Set up environment variables:
+   - `base_url`: API base URL
+   - `auth_token`: Authentication token (after login)
+
+3. Basic authentication flow:
+   ```bash
+   # Login
+   curl -X POST http://localhost:3000/api/v1/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email":"user@example.com","password":"password123"}'
+
+   # Use the returned token for authenticated requests
+   curl -X GET http://localhost:3000/api/v1/users \
+     -H "Authorization: Bearer YOUR_TOKEN"
+   ``` 
