@@ -50,4 +50,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=30s \
   CMD wget --quiet --tries=1 --spider http://localhost:5000/api/health || exit 1
 
 # Start the application
-CMD ["node", "src/server.js"] 
+CMD ["ts-node", "src/server.ts"] 

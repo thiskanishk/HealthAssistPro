@@ -1,4 +1,5 @@
-import { Express } from 'express';
+import { Express, Request, Response, NextFunction } from 'express';
+import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -7,6 +8,10 @@ import morgan from 'morgan';
 import logger from './services/logger';
 import config from './config';
 import expressApp from './app';
+import userRoutes from './routes/user.routes';
+import patientRoutes from './routes/patient.routes';
+import appointmentRoutes from './routes/appointment.routes';
+import healthRecordRoutes from './routes/healthRecord.routes';
 
 const app: Express = expressApp;
 
@@ -34,10 +39,11 @@ app.get('/health', (req: Request, res: Response) => {
     res.status(200).json({ status: 'ok' });
 });
 
-// Import and use routes here
-// app.use('/api/users', userRoutes);
-// app.use('/api/patients', patientRoutes);
-// etc.
+// Import and use routes
+app.use('/api/users', userRoutes);
+app.use('/api/patients', patientRoutes);
+app.use('/api/appointments', appointmentRoutes);
+app.use('/api/health-records', healthRecordRoutes);
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
