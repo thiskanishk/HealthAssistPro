@@ -1,67 +1,75 @@
-import { MedicalDiagnosisService } from './MedicalDiagnosisService';
-import { SymptomCheckerService } from './SymptomCheckerService';
-import { MedicalImageAnalysisService } from './MedicalImageAnalysisService';
-import { HealthAnalyticsService } from './HealthAnalyticsService';
-import { createLogger } from '../../utils/logger';
+import { OpenAI } from 'openai';
+import { logger } from '../logger';
 
 export class AIServiceManager {
-    private static instance: AIServiceManager;
-    private services: Map<string, any>;
-    private logger = createLogger('AIServiceManager');
+    private openai: OpenAI;
 
-    private constructor() {
-        this.services = new Map();
-        this.initializeServices();
+    constructor() {
+        this.openai = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY
+        });
     }
 
-    public static getInstance(): AIServiceManager {
-        if (!AIServiceManager.instance) {
-            AIServiceManager.instance = new AIServiceManager();
-        }
-        return AIServiceManager.instance;
-    }
-
-    private initializeServices(): void {
+    async generateDiagnosisSuggestion(symptoms: string[], patientHistory: any) {
         try {
-            this.services.set('diagnosis', new MedicalDiagnosisService());
-            this.services.set('symptomChecker', new SymptomCheckerService());
-            this.services.set('imageAnalysis', new MedicalImageAnalysisService());
-            this.services.set('healthAnalytics', new HealthAnalyticsService());
+            const response = await this.openai.chat.completions.create({
+                model: "gpt-4",
+                messages: [
+                    {
+                        role: "system",
+                        content: "You are a medical AI assistant helping healthcare professionals. Provide detailed analysis and potential diagnoses based on symptoms and patient history."
+                    },
+                    {
+                        role: "user",
+                        content: `Analyze the following symptoms and patient history:
+                          Symptoms: ${symptoms.join(', ')}
+                          Patient History: ${JSON.stringify(patientHistory, null, 2)}`
+                    }
+                ],
+                temperature: 0.3
+            });
+
+            return {
+                suggestions: response.choices[0].message.content,
+                confidence: response.choices[0].finish_reason === 'stop' ? 'high' : 'medium'
+            };
         } catch (error) {
-            this.logger.error('Failed to initialize AI services', { error });
+            logger.error('AI Diagnosis Generation Error:', error);
             throw error;
         }
     }
 
-    public getService(serviceName: string): any {
-        const service = this.services.get(serviceName);
-        if (!service) {
-            throw new Error(`AI service '${serviceName}' not found`);
+    async analyzeMedicalReport(reportText: string) {
+        try {
+            const response = await this.openai.chat.completions.create({
+                model: "gpt-4",
+                messages: [
+                    {
+                        role: "system",
+                        content: "You are a medical report analyzer. Extract key findings, recommendations, and potential concerns from medical reports."
+                    },
+                    {
+                        role: "user",
+                        content: reportText
+                    }
+                ],
+                temperature: 0.2
+            });
+
+            return {
+                analysis: response.choices[0].message.content,
+                keyFindings: this.extractKeyFindings(response.choices[0].message.content)
+            };
+        } catch (error) {
+            logger.error('Medical Report Analysis Error:', error);
+            throw error;
         }
-        return service;
     }
 
-    public async healthCheck(): Promise<{
-        status: string;
-        services: Record<string, boolean>;
-    }> {
-        const serviceStatus: Record<string, boolean> = {};
-        
-        for (const [name, service] of this.services.entries()) {
-            try {
-                await service.ping();
-                serviceStatus[name] = true;
-            } catch (error) {
-                this.logger.error(`Health check failed for ${name}`, { error });
-                serviceStatus[name] = false;
-            }
-        }
-
-        return {
-            status: Object.values(serviceStatus).every(status => status) 
-                ? 'healthy' 
-                : 'degraded',
-            services: serviceStatus
-        };
+    private extractKeyFindings(analysis: string) {
+        // Implementation to extract structured key findings
+        return analysis.split('\n').filter(line => line.includes(':'));
     }
-} 
+}
+
+export const aiService = new AIServiceManager(); 

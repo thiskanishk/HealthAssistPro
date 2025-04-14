@@ -1,12 +1,37 @@
 export class AppError extends Error {
-    public readonly statusCode: number;
-    public readonly isOperational: boolean;
-
-    constructor(message: string, statusCode: number, isOperational = true) {
+    constructor(
+        public message: string,
+        public statusCode: number,
+        public code?: string,
+        public errors?: any[]
+    ) {
         super(message);
-        this.statusCode = statusCode;
-        this.isOperational = isOperational;
+        this.name = 'AppError';
         Error.captureStackTrace(this, this.constructor);
+    }
+
+    static badRequest(message: string, code?: string, errors?: any[]) {
+        return new AppError(message, 400, code, errors);
+    }
+
+    static unauthorized(message: string = 'Unauthorized access') {
+        return new AppError(message, 401, 'UNAUTHORIZED');
+    }
+
+    static forbidden(message: string = 'Access forbidden') {
+        return new AppError(message, 403, 'FORBIDDEN');
+    }
+
+    static notFound(message: string = 'Resource not found') {
+        return new AppError(message, 404, 'NOT_FOUND');
+    }
+
+    static validation(errors: any[]) {
+        return new AppError('Validation Error', 400, 'VALIDATION_ERROR', errors);
+    }
+
+    static internal(message: string = 'Internal server error') {
+        return new AppError(message, 500, 'INTERNAL_ERROR');
     }
 }
 
