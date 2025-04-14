@@ -11,7 +11,8 @@
     "test:coverage": "jest --coverage --runInBand",
     "lint": "eslint .",
     "security-check": "npm audit && snyk test",
-    "test-db": "node src/utils/testConnection.js"
+    "test-db": "node src/utils/testDbConnection.js",
+    "fix-db": "node src/utils/fixDbConnection.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
