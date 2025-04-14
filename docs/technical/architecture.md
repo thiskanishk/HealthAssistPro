@@ -196,3 +196,18 @@ sequenceDiagram
    - Auto-scaling
    - Backup systems
    - Disaster recovery 
+
+# Server Configuration
+PORT=5000
+NODE_ENV=development
+
+# MongoDB Configuration
+MONGO_ROOT_USERNAME=admin
+MONGO_ROOT_PASSWORD=your_secure_password
+MONGODB_URI=mongodb://mongodb:27017/healthassistpro
+
+# JWT Configuration
+JWT_SECRET=your_jwt_secret_key
+
+# Redis Configuration
+REDIS_URL=redis://redis:6379 
