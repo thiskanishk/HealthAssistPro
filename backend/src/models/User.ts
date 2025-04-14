@@ -2,7 +2,6 @@ import mongoose, { Document, Schema, Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { config } from '../config';
 import { UserRole } from '../types/auth';
 
 export type UserStatus = 'active' | 'inactive' | 'suspended';
@@ -103,7 +102,7 @@ export interface IUser extends Document {
     generatePasswordResetToken(): string;
     isPasswordReused(candidatePassword: string): Promise<boolean>;
     generateAuthToken(): string;
-    addSecurityEvent(event: Omit<ISecurityEvent, 'timestamp'>): Promise<IUser>;
+    addSecurityEvent(event: Omit<ISecurityEvent, 'timestamp'>): Promise<void>;
     trackLoginAttempt(success: boolean, deviceId: string, ipAddress: string): Promise<void>;
 }
 
@@ -143,6 +142,15 @@ const securityEventSchema = new Schema<ISecurityEvent>({
     success: Boolean,
     details: Schema.Types.Mixed
 });
+
+// Hardcoded defaults - MOVE THESE TO config/index.ts!
+const BCRYPT_SALT_ROUNDS = 10;
+const JWT_SECRET = process.env.JWT_SECRET || 'YOUR_DEFAULT_JWT_SECRET'; // Ensure JWT_SECRET is set in env or config
+const JWT_EXPIRES_IN = '1h';
+const TOKEN_EXPIRATION_VERIFICATION = 3600000; // 1 hour
+const TOKEN_EXPIRATION_PASSWORD_RESET = 3600000; // 1 hour
+const MAX_LOGIN_ATTEMPTS = 5;
+const MAX_EVENT_HISTORY = 100;
 
 const userSchema = new Schema<IUser>({
     email: {
@@ -259,25 +267,25 @@ const userSchema = new Schema<IUser>({
     timestamps: true
 });
 
-userSchema.pre('save', async function(next) {
+userSchema.pre<IUser>('save', async function(next) {
     if (!this.isModified('password')) return next();
     
     try {
-        const salt = await bcrypt.genSalt(12);
+        const salt = await bcrypt.genSalt(BCRYPT_SALT_ROUNDS);
         this.password = await bcrypt.hash(this.password, salt);
         
-        this.passwordHistory.push({
+        this.passwordHistory.unshift({
             password: this.password,
             changedAt: new Date()
         });
         
         if (this.passwordHistory.length > 5) {
-            this.passwordHistory = this.passwordHistory.slice(-5);
+            this.passwordHistory.pop();
         }
         
         next();
-    } catch (error) {
-        next(error as Error);
+    } catch (error: any) {
+        next(error);
     }
 });
 
@@ -286,19 +294,28 @@ userSchema.methods.comparePassword = async function(candidatePassword: string): 
 };
 
 userSchema.methods.generateVerificationToken = function(): string {
-    this.verificationToken = crypto.randomBytes(32).toString('hex');
-    return this.verificationToken;
+    const verificationToken = crypto.randomBytes(20).toString('hex');
+    this.emailVerificationToken = verificationToken;
+    this.emailVerificationExpires = new Date(Date.now() + TOKEN_EXPIRATION_VERIFICATION);
+    return verificationToken;
 };
 
 userSchema.methods.generatePasswordResetToken = function(): string {
-    this.resetPasswordToken = crypto.randomBytes(32).toString('hex');
-    this.resetPasswordExpires = new Date(Date.now() + 3600000); // 1 hour
-    return this.resetPasswordToken;
+    const resetToken = crypto.randomBytes(20).toString('hex');
+    this.resetPasswordToken = crypto
+        .createHash('sha256')
+        .update(resetToken)
+        .digest('hex');
+    this.resetPasswordExpires = new Date(Date.now() + TOKEN_EXPIRATION_PASSWORD_RESET);
+    return resetToken;
 };
 
 userSchema.methods.isPasswordReused = async function(candidatePassword: string): Promise<boolean> {
-    for (const historical of this.passwordHistory) {
-        if (await bcrypt.compare(candidatePassword, historical.password)) {
+    if (!this.passwordHistory || this.passwordHistory.length === 0) {
+        return false;
+    }
+    for (const record of this.passwordHistory) {
+        if (await bcrypt.compare(candidatePassword, record.password)) {
             return true;
         }
     }
@@ -306,56 +323,57 @@ userSchema.methods.isPasswordReused = async function(candidatePassword: string):
 };
 
 userSchema.methods.generateAuthToken = function(): string {
-    return jwt.sign(
-        {
-            id: this._id,
-            role: this.role,
-            twoFactorEnabled: this.twoFactorEnabled
-        },
-        config.jwt.secret,
-        {
-            expiresIn: config.jwt.expiresIn
-        }
-    );
+    if (!JWT_SECRET) {
+        console.error('JWT_SECRET is not defined. Cannot generate auth token.');
+        throw new Error('JWT configuration error.'); // Or handle more gracefully
+    }
+    return jwt.sign({ id: this._id, role: this.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 };
 
-userSchema.methods.addSecurityEvent = async function(event: Omit<ISecurityEvent, 'timestamp'>): Promise<IUser> {
-    this.securityEvents.push({
+userSchema.methods.addSecurityEvent = async function(event: Omit<ISecurityEvent, 'timestamp'>): Promise<void> {
+    const eventWithTimestamp: ISecurityEvent = {
         ...event,
         timestamp: new Date()
-    });
-    
-    if (this.securityEvents.length > 100) {
-        this.securityEvents = this.securityEvents.slice(-100);
+    };
+    this.securityEvents.push(eventWithTimestamp);
+    if (this.securityEvents.length > MAX_EVENT_HISTORY) {
+        this.securityEvents.shift();
     }
-    
-    return this.save();
 };
 
 userSchema.methods.trackLoginAttempt = async function(success: boolean, deviceId: string, ipAddress: string): Promise<void> {
-    if (success) {
-        this.failedLoginAttempts = 0;
-        this.lastSuccessfulLogin = new Date();
-        this.lastActivity = new Date();
-    } else {
-        this.failedLoginAttempts += 1;
-        this.lastFailedLogin = new Date();
-        
-        if (this.failedLoginAttempts >= 5) {
-            this.isLocked = true;
-            this.lockReason = 'Too many failed login attempts';
-        }
-    }
-    
-    await this.addSecurityEvent({
+    const maxAttempts = MAX_LOGIN_ATTEMPTS;
+    const maxEventHistory = MAX_EVENT_HISTORY;
+
+    const securityEvent: Omit<ISecurityEvent, 'timestamp'> = {
         type: success ? 'login_success' : 'login_failure',
         deviceId,
         ipAddress,
         success,
-        details: {
-            failedAttempts: this.failedLoginAttempts
+        details: {}
+    };
+
+    if (success) {
+        this.failedLoginAttempts = 0;
+        this.lastSuccessfulLogin = new Date();
+        this.isLocked = false;
+        this.lockReason = undefined;
+        securityEvent.type = 'login_success';
+    } else {
+        this.failedLoginAttempts += 1;
+        this.lastFailedLogin = new Date();
+        securityEvent.type = 'login_failure';
+        if (this.failedLoginAttempts >= maxAttempts) {
+            this.isLocked = true;
+            this.lockReason = `Account locked due to ${maxAttempts} failed login attempts.`;
+            securityEvent.details = { reason: 'Account locked' };
         }
-    });
+    }
+    
+    this.securityEvents.push({ ...securityEvent, timestamp: new Date() });
+    if (this.securityEvents.length > maxEventHistory) {
+        this.securityEvents.shift();
+    }
 };
 
 export const User: Model<IUser> = mongoose.model<IUser>('User', userSchema);

@@ -1,27 +1,31 @@
-import { Express, Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import express from 'express';
 import mongoose from 'mongoose';
-import cors from 'cors';
+import cors, { CorsOptions } from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
 import logger from './services/logger';
 import config from './config';
 import expressApp from './app';
-import userRoutes from './routes/user.routes';
-import patientRoutes from './routes/patient.routes';
-import appointmentRoutes from './routes/appointment.routes';
-import healthRecordRoutes from './routes/healthRecord.routes';
+import { errorHandler } from './middleware/errorHandler';
+import apiRoutes from './routes/api';
 
-const app: Express = expressApp;
+const app = expressApp;
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cors());
+// Using a basic default CORS setup. 
+// TODO: Define CorsOptions in config/index.ts and use config.cors here.
+app.use(cors()); 
 app.use(helmet());
 app.use(compression());
-app.use(morgan('dev'));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan(config.server.env === 'development' ? 'dev' : 'combined', {
+    stream: {
+        write: (message) => logger.info(message.trim()),
+    },
+}));
 
 // Connect to MongoDB
 mongoose.connect(config.database.uri, config.database.options)
@@ -30,35 +34,25 @@ mongoose.connect(config.database.uri, config.database.options)
         startServer();
     })
     .catch((error) => {
-        logger.error('MongoDB connection error:', error);
+        logger.error('MongoDB connection error:', { error: error.message, stack: error.stack });
         process.exit(1);
     });
 
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
-    res.status(200).json({ status: 'ok' });
+    res.status(200).json({ status: 'UP' });
 });
 
-// Import and use routes
-app.use('/api/users', userRoutes);
-app.use('/api/patients', patientRoutes);
-app.use('/api/appointments', appointmentRoutes);
-app.use('/api/health-records', healthRecordRoutes);
+// API Routes
+app.use('/api', apiRoutes);
 
-// Error handling middleware
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-    console.error(err.stack);
-    res.status(500).json({
-        error: 'Internal Server Error',
-        message: process.env.NODE_ENV === 'development' ? err.message : undefined
-    });
-});
+// Centralized Error Handling Middleware
+app.use(errorHandler);
 
 // Start the server
 function startServer() {
     const server = app.listen(config.server.port, () => {
         logger.info(`Server is running on port ${config.server.port} in ${config.server.env} mode`);
-        logger.info(`API is available at ${config.server.apiUrl}`);
     });
 
     // Handle server errors
@@ -67,8 +61,8 @@ function startServer() {
             throw error;
         }
 
-        const bind = typeof config.server.port === 'string' 
-            ? 'Pipe ' + config.server.port 
+        const bind = typeof config.server.port === 'string'
+            ? 'Pipe ' + config.server.port
             : 'Port ' + config.server.port;
 
         // Handle specific listen errors with friendly messages
@@ -82,52 +76,64 @@ function startServer() {
                 process.exit(1);
                 break;
             default:
+                logger.error('Server startup error:', { code: error.code, message: error.message });
                 throw error;
         }
     });
 
-    // Graceful shutdown
-    const gracefulShutdown = () => {
-        logger.info('Received shutdown signal');
+    const gracefulShutdown = (signal: string) => {
+        logger.info(`Received ${signal}, shutting down gracefully...`);
         server.close(() => {
-            logger.info('Server closed');
-            mongoose.connection.close(() => {
-                logger.info('MongoDB connection closed');
-                process.exit(0);
+            logger.info('HTTP server closed.');
+            mongoose.connection.close(false).then(() => {
+                 logger.info('MongoDB connection closed.');
+                 process.exit(0);
+            }).catch(err => {
+                 logger.error('Error closing MongoDB connection:', err);
+                 process.exit(1);
             });
         });
 
-        // If server hasn't finished in 10 seconds, shut down forcefully
+        // Force shutdown after timeout
         setTimeout(() => {
-            logger.error('Could not close connections in time, forcefully shutting down');
+            logger.error('Could not close connections in time, forcing shutdown.');
             process.exit(1);
         }, 10000);
     };
 
-    // Handle shutdown signals
-    process.on('SIGTERM', gracefulShutdown);
-    process.on('SIGINT', gracefulShutdown);
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
 
-// Handle uncaught exceptions
+// Global Error Handlers
 process.on('uncaughtException', (error: Error) => {
-    logger.error('Uncaught Exception:', error);
-    // Ensure we flush logs before exiting
-    logger.on('finish', () => {
+    logger.error('Uncaught Exception:', { message: error.message, stack: error.stack });
+    // Attempt to close logger gracefully before exiting
+    // Check if logger has a close method and it's a function
+    if (logger && typeof (logger as any).close === 'function') {
+        (logger as any).close(() => {
+            process.exit(1);
+        });
+        // Set a timeout in case logger.close hangs
+        setTimeout(() => process.exit(1), 3000);
+    } else {
         process.exit(1);
-    });
-    logger.end();
+    }
 });
 
-// Handle unhandled promise rejections
 process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
-    logger.error('Unhandled Rejection:', {
-        reason,
-        promise
-    });
-    // Ensure we flush logs before exiting
-    logger.on('finish', () => {
+    const errorDetails = (reason instanceof Error) 
+        ? { message: reason.message, stack: reason.stack } 
+        : { reason };        
+    logger.error('Unhandled Rejection:', { ...errorDetails, promise });
+
+    // Attempt to close logger gracefully before exiting
+    if (logger && typeof (logger as any).close === 'function') {
+        (logger as any).close(() => {
+            process.exit(1);
+        });
+        setTimeout(() => process.exit(1), 3000);
+    } else {
         process.exit(1);
-    });
-    logger.end();
+    }
 }); 
