@@ -332,3 +332,25 @@ All IDs are strings in MongoDB ObjectId format:
    - Implement reconnection logic
    - Handle connection errors
    - Maintain heartbeat 
+
+## Endpoints
+
+### Patient API
+```typescript
+// Patient endpoints documentation
+```
+
+### Diagnosis API
+```typescript
+// Diagnosis endpoints documentation
+```
+
+### Treatment API
+```typescript
+// Treatment endpoints documentation
+```
+
+### Monitoring API
+```typescript
+// Monitoring endpoints documentation
+``` 
