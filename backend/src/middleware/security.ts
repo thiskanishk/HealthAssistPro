@@ -232,11 +232,11 @@ export const sanitizeRequest = (req: Request, res: Response, next: NextFunction)
   next();
 };
 
-// Session configuration
+// Session configuration with environment variable fallbacks
 export const sessionMiddleware = session({
   ...securityConfig.session,
   store: MongoStore.create({
-    mongoUrl: config.database.uri,
+    mongoUrl: process.env.MONGO_URI || 'mongodb://localhost:27017/healthassist',
     crypto: {
       secret: process.env.SESSION_ENCRYPT_SECRET || 'session-encrypt-secret'
     }
