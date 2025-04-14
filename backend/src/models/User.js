@@ -65,13 +65,13 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['doctor', 'nurse', 'admin'],
+    enum: ['Doctor', 'Nurse', 'Admin', 'Patient'],
     required: true
   },
   specialization: {
     type: String,
     required: function() {
-      return this.role === 'doctor';
+      return this.role === 'Doctor';
     }
   },
   licenseNumber: {
@@ -151,7 +151,14 @@ const userSchema = new mongoose.Schema({
     deviceId: String,
     createdAt: Date,
     expiresAt: Date
-  }]
+  }],
+  dateOfBirth: Date,
+  medicalHistory: [String],
+  emergencyContact: {
+    name: String,
+    phone: String,
+    relationship: String
+  }
 }, {
   timestamps: true
 });

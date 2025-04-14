@@ -323,4 +323,40 @@ router.post('/logout', verifyToken, logActivity('logout'), (req, res) => {
   });
 });
 
+router.post('/register-patient', async (req, res) => {
+  try {
+    const { email, password, name, dateOfBirth } = req.body;
+    
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already registered' });
+    }
+
+    // Create new patient user
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+
+    const newUser = new User({
+      email,
+      password: hashedPassword,
+      name,
+      role: 'Patient',
+      dateOfBirth,
+      emailVerificationToken: verificationToken
+    });
+
+    await newUser.save();
+
+    // Send verification email
+    await sendVerificationEmail(email, verificationToken);
+
+    res.status(201).json({ 
+      message: 'Patient registration successful. Please verify your email.' 
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 module.exports = router; 
