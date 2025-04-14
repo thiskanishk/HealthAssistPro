@@ -6,13 +6,16 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "jest --runInBand",
+    "test": "jest --ci --coverage",
     "test:watch": "jest --watch --runInBand",
     "test:coverage": "jest --coverage --runInBand",
     "lint": "eslint .",
     "security-check": "npm audit && snyk test",
     "test-db": "node src/utils/testDbConnection.js",
-    "fix-db": "node src/utils/fixDbConnection.js"
+    "fix-db": "node src/utils/fixDbConnection.js",
+    "build": "npm run test && npm run build:server",
+    "build:server": "echo 'Building server...'",
+    "vercel-build": "npm run build"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

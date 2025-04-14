@@ -4,45 +4,50 @@ require('dotenv').config();
 const testDbConnection = async () => {
   try {
     console.log('🔄 Testing MongoDB connection...');
-    console.log(`📍 URI: ${process.env.MONGODB_URI}`);
+    // Remove sensitive URI logging
+    console.log('📍 Attempting connection...');
 
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      bufferCommands: false
+    });
     
     // Test the connection
     console.log('✅ MongoDB Connected Successfully!');
     
-    // Get database information
-    const dbStatus = await mongoose.connection.db.stats();
-    console.log('\n📊 Database Information:');
-    console.log('------------------------');
-    console.log(`Database Name: ${mongoose.connection.db.databaseName}`);
-    console.log(`Number of Collections: ${dbStatus.collections}`);
-    console.log(`Number of Documents: ${dbStatus.objects}`);
-    console.log(`Storage Size: ${(dbStatus.storageSize / 1024 / 1024).toFixed(2)} MB`);
+    // Get database information (only if not in production)
+    if (process.env.NODE_ENV !== 'production') {
+      const dbStatus = await mongoose.connection.db.stats();
+      console.log('\n📊 Database Information:');
+      console.log('------------------------');
+      console.log(`Database Name: ${mongoose.connection.db.databaseName}`);
+      console.log(`Number of Collections: ${dbStatus.collections}`);
+      console.log(`Number of Documents: ${dbStatus.objects}`);
+      console.log(`Storage Size: ${(dbStatus.storageSize / 1024 / 1024).toFixed(2)} MB`);
 
-    // List all collections
-    const collections = await mongoose.connection.db.listCollections().toArray();
-    console.log('\n📚 Available Collections:');
-    console.log('------------------------');
-    collections.forEach(collection => {
-      console.log(`- ${collection.name}`);
-    });
+      // List all collections
+      const collections = await mongoose.connection.db.listCollections().toArray();
+      console.log('\n📚 Available Collections:');
+      console.log('------------------------');
+      collections.forEach(collection => {
+        console.log(`- ${collection.name}`);
+      });
+    }
 
   } catch (error) {
     console.error('\n❌ MongoDB Connection Error:');
     console.error('------------------------');
     console.error(error.message);
     
-    console.log('\n🔍 Troubleshooting Steps:');
-    console.log('------------------------');
-    console.log('1. Verify MongoDB is running locally:');
-    console.log('   → Run: mongosh');
-    console.log('2. Check if the port 27017 is available:');
-    console.log('   → Run: netstat -an | findstr "27017"');
-    console.log('3. Verify the database name is correct in .env file');
-    console.log('4. Make sure MongoDB service is started:');
-    console.log('   → Windows: net start MongoDB');
-    console.log('   → Linux/Mac: sudo service mongod status');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('\n🔍 Troubleshooting Steps:');
+      console.log('------------------------');
+      console.log('1. Check MongoDB Atlas connection string');
+      console.log('2. Verify IP whitelist in MongoDB Atlas');
+      console.log('3. Check network connectivity');
+      console.log('4. Verify environment variables are set in Vercel');
+    }
 
   } finally {
     // Close the connection
@@ -51,5 +56,9 @@ const testDbConnection = async () => {
   }
 };
 
-// Run the test
-testDbConnection(); 
+// Only run the test if not in production
+if (process.env.NODE_ENV !== 'production') {
+  testDbConnection();
+}
+
+module.exports = testDbConnection; 
