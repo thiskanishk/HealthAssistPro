@@ -5,6 +5,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { AppError } from './utils/errors';
 
 const app = express();
+const refreshTokenRoute = require('./routes/refreshToken');
 
 // Add logging middleware
 app.use(loggerMiddleware);

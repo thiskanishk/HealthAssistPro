@@ -13,6 +13,11 @@ const fs = require('fs');
 
 // Initialize express app
 const app = express();
+const analyzeRoutes = require('./routes/analyzeRoutes');
+
+const setupSwagger = require('./config/swagger');
+setupSwagger(app);
+
 
 // Logger configuration
 const logger = createLogger({
@@ -35,6 +40,8 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Security Middleware
 app.use(helmet(config.security.helmet));
+app.use('/api/v1/analyze-history', analyzeRoutes);
+app.use('/api/v1', require('./routes/healthRoutes'));
 app.use(cors(config.security.cors));
 
 // Request Parsing
@@ -151,6 +158,11 @@ process.on('SIGTERM', () => {
     
     mongoose.connection.close(() => {
         logger.info('MongoDB connection closed');
+        process.exit(0);
+    });
+});
+
+module.exports = app; er.info('MongoDB connection closed');
         process.exit(0);
     });
 });
