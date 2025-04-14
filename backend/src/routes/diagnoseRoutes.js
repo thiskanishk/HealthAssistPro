@@ -1,6 +1,5 @@
-
 const express = require('express');
-const diagnoseRateLimiter = require('../middlewares/rateLimiter');
+const diagnoseRateLimiter = require('../middleware/rateLimiter').diagnoseRateLimiter;
 const router = express.Router();
 const diagnoseController = require('../controllers/diagnoseController');
 const validateDiagnosis = require('../validators/diagnoseValidator');

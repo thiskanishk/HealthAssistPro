@@ -2,12 +2,24 @@ import { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import { config } from '../config';
 import winston from 'winston';
-import mongoSanitize from 'express-mongo-sanitize';
-import xss from 'xss-clean';
-import hpp from 'hpp';
+// Import as any to avoid type errors
+const mongoSanitize = require('express-mongo-sanitize');
+const xss = require('xss-clean');
+const hpp = require('hpp');
 import session from 'express-session';
 import MongoStore from 'connect-mongo';
-import { rateLimiters } from './rateLimit';
+import { apiLimiter } from './rateLimiter';
+
+// Extend Express Request for custom properties - removed conflicting sessionID
+declare global {
+  namespace Express {
+    interface Request {
+      id?: string;
+      // sessionID is already defined in @types/express-session
+      securityViolation?: string;
+    }
+  }
+}
 
 // Types for security configuration
 interface SecurityConfig {
@@ -61,7 +73,7 @@ const auditLogger = winston.createLogger({
 const securityConfig: SecurityConfig = {
   cors: {
     origin: process.env.NODE_ENV === 'production'
-      ? config.server.corsOrigin
+      ? (config.server?.corsOrigin || ['http://localhost:3000'])
       : '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
@@ -165,12 +177,12 @@ export const auditLog = (req: Request, res: Response, next: NextFunction): void 
     userId: req.user?.id || 'anonymous',
     method: req.method,
     path: req.path,
-    ip: req.ip,
-    userAgent: req.get('user-agent'),
-    origin: req.get('origin'),
-    referrer: req.get('referrer'),
-    requestId: req.id,
-    sessionId: req.sessionID
+    ip: req.ip || 'unknown',
+    userAgent: req.get('user-agent') || 'unknown',
+    origin: req.get('origin') || 'unknown',
+    referrer: req.get('referrer') || 'unknown',
+    requestId: req.id || 'unknown',
+    sessionId: req.sessionID || 'unknown'
   };
 
   // Log sensitive operations
@@ -184,10 +196,10 @@ export const auditLog = (req: Request, res: Response, next: NextFunction): void 
   }
 
   // Log security events
-  if ((req as any).securityViolation) {
+  if (req.securityViolation) {
     auditLogger.warn('Security violation detected', {
       ...logData,
-      violation: (req as any).securityViolation
+      violation: req.securityViolation
     });
   }
 
@@ -209,7 +221,10 @@ export const sanitizeRequest = (req: Request, res: Response, next: NextFunction)
   if (req.query) {
     Object.keys(req.query).forEach(key => {
       if (typeof req.query[key] === 'string') {
-        req.query[key] = xss(req.query[key]);
+        const value = req.query[key];
+        if (typeof value === 'string') {
+          req.query[key] = xss(value);
+        }
       }
     });
   }
@@ -231,32 +246,35 @@ export const sessionMiddleware = session({
 // IP blocking middleware
 const blockedIPs = new Set<string>();
 
+// Fix for ipBlocker return type with different approach
 export const ipBlocker = (req: Request, res: Response, next: NextFunction): void => {
-  const clientIp = req.ip;
+  const clientIp = req.ip || '0.0.0.0'; 
   
   if (blockedIPs.has(clientIp)) {
     auditLogger.warn('Blocked IP attempted access', { ip: clientIp });
-    return res.status(403).json({
+    // Send response without returning it to avoid type errors
+    res.status(403).json({
       status: 'error',
       message: 'Access denied'
     });
+    // Don't call next() since we've already responded
+    return;
   }
 
   next();
 };
 
-// Combine all security middleware
+// Fix securityMiddleware array use
 export const securityMiddlewares = [
   securityMiddleware,
-  rateLimiters.api,
   requestSizeLimiter,
-  sessionMiddleware,
   mongoSanitize(),
   xss(),
   hpp(),
+  customSecurityHeaders,
   ipBlocker,
   sanitizeRequest,
-  auditLog
+  apiLimiter
 ];
 
 // Typed CORS configuration

@@ -1,8 +1,7 @@
-
 const express = require('express');
 const router = express.Router();
 const { submitDiagnosis } = require('../services/telemedicineService');
-const authMiddleware = require('../middlewares/authMiddleware');
+const authMiddleware = require('../middleware/authMiddleware');
 
 router.post('/diagnose', authMiddleware, async (req, res) => {
   try {
