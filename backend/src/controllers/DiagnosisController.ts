@@ -1,8 +1,9 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { aiService } from '../services/ai/AIServiceManager';
 import { SymptomAnalyzer } from '../services/ai/SymptomAnalyzer';
 import { TreatmentRecommender } from '../services/ai/TreatmentRecommender';
 import { DocumentationAssistant } from '../services/ai/DocumentationAssistant';
+import * as PatientModel from '../models/Patient';
 
 export class DiagnosisController {
   private symptomAnalyzer: SymptomAnalyzer;
@@ -15,12 +16,12 @@ export class DiagnosisController {
     this.documentationAssistant = new DocumentationAssistant();
   }
 
-  async analyzeSymptomsAndDiagnose(req: Request, res: Response) {
+  async analyzeSymptomsAndDiagnose(req: Request, res: Response, next: NextFunction) {
     try {
       const { symptoms, patientId } = req.body;
       
       // Get patient history
-      const patient = await Patient.findById(patientId).populate('medicalHistory');
+      const patient = await PatientModel.Patient.findById(patientId).populate('medicalHistory');
       
       // AI-powered symptom analysis
       const symptomAnalysis = await this.symptomAnalyzer.analyzeSymptoms(
@@ -62,4 +63,4 @@ export class DiagnosisController {
       next(error);
     }
   }
-} 
+}

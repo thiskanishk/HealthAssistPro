@@ -1,154 +1,155 @@
-import { useState, useEffect, useCallback, createContext, useContext } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { User, AuthState } from '../types';
+import { apiService } from '../services/api';
 
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: string;
-  specialization: string;
-  licenseNumber: string;
-  isEmailVerified: boolean;
-}
-
-interface AuthContextType {
+interface UseAuthReturn {
   user: User | null;
-  loading: boolean;
+  isAuthenticated: boolean;
+  isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (userData: RegisterData) => Promise<void>;
-  logout: () => Promise<void>;
-  clearError: () => void;
+  logout: () => void;
+  register: (userData: Partial<User>) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
 }
 
-interface RegisterData {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  role: string;
-  specialization: string;
-  licenseNumber: string;
-}
+export const useAuth = (): UseAuthReturn => {
+  const navigate = useNavigate();
+  const [authState, setAuthState] = useState<AuthState>({
+    user: null,
+    token: localStorage.getItem('token'),
+    isAuthenticated: false,
+    isLoading: true,
+    error: null,
+  });
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  const setError = (error: string) => {
+    setAuthState(prev => ({ ...prev, error }));
+    // Clear error after 5 seconds
+    setTimeout(() => {
+      setAuthState(prev => ({ ...prev, error: null }));
+    }, 5000);
+  };
 
-export const AuthContext = createContext<AuthContextType | null>(null);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-export const useAuthProvider = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const clearError = useCallback(() => {
-    setError(null);
-  }, []);
-
-  const loadUser = useCallback(async () => {
+  const login = useCallback(async (email: string, password: string) => {
     try {
+      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+      const response = await apiService.login(email, password);
+      
+      if (response.success && response.data) {
+        const { user, token } = response.data;
+        localStorage.setItem('token', token);
+        setAuthState({
+          user,
+          token,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null,
+        });
+        
+        // Redirect based on user role
+        switch (user.role) {
+          case 'admin':
+            navigate('/admin/dashboard');
+            break;
+          case 'doctor':
+            navigate('/doctor/dashboard');
+            break;
+          case 'nurse':
+            navigate('/nurse/dashboard');
+            break;
+          case 'patient':
+            navigate('/patient/dashboard');
+            break;
+          default:
+            navigate('/dashboard');
+        }
+      }
+    } catch (error: any) {
+      setError(error.response?.data?.message || 'Login failed');
+      setAuthState(prev => ({ ...prev, isLoading: false }));
+    }
+  }, [navigate]);
+
+  const logout = useCallback(() => {
+    localStorage.removeItem('token');
+    setAuthState({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: null,
+    });
+    navigate('/auth/login');
+  }, [navigate]);
+
+  const register = useCallback(async (userData: Partial<User>) => {
+    try {
+      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+      const response = await apiService.register(userData);
+      
+      if (response.success && response.data) {
+        navigate('/auth/login');
+      }
+    } catch (error: any) {
+      setError(error.response?.data?.message || 'Registration failed');
+    } finally {
+      setAuthState(prev => ({ ...prev, isLoading: false }));
+    }
+  }, [navigate]);
+
+  const resetPassword = useCallback(async (email: string) => {
+    try {
+      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+      const response = await apiService.resetPassword(email);
+      
+      if (response.success) {
+        navigate('/auth/login');
+      }
+    } catch (error: any) {
+      setError(error.response?.data?.message || 'Password reset failed');
+    } finally {
+      setAuthState(prev => ({ ...prev, isLoading: false }));
+    }
+  }, [navigate]);
+
+  // Check auth status on mount and token change
+  useEffect(() => {
+    const validateToken = async () => {
       const token = localStorage.getItem('token');
       if (!token) {
-        setLoading(false);
+        setAuthState(prev => ({ ...prev, isLoading: false }));
         return;
       }
 
-      const response = await axios.get(`${API_BASE_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      try {
+        const response = await apiService.api.get('/auth/validate');
+        if (response.data.user) {
+          setAuthState({
+            user: response.data.user,
+            token,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+        }
+      } catch (error) {
+        logout();
+      }
+    };
 
-      setUser(response.data);
-    } catch (err) {
-      localStorage.removeItem('token');
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadUser();
-  }, [loadUser]);
-
-  const login = async (email: string, password: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
-        email,
-        password
-      });
-
-      const { token, user: userData } = response.data;
-      localStorage.setItem('token', token);
-      setUser(userData);
-
-      // Configure axios defaults for future requests
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'An error occurred during login';
-      setError(message);
-      throw new Error(message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const register = async (userData: RegisterData) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      await axios.post(`${API_BASE_URL}/auth/register`, userData);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'An error occurred during registration';
-      setError(message);
-      throw new Error(message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const logout = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Clear token from localStorage
-      localStorage.removeItem('token');
-      
-      // Remove Authorization header
-      delete axios.defaults.headers.common['Authorization'];
-      
-      // Clear user state
-      setUser(null);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'An error occurred during logout';
-      setError(message);
-      throw new Error(message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    validateToken();
+  }, [logout]);
 
   return {
-    user,
-    loading,
-    error,
+    user: authState.user,
+    isAuthenticated: authState.isAuthenticated,
+    isLoading: authState.isLoading,
+    error: authState.error,
     login,
-    register,
     logout,
-    clearError
+    register,
+    resetPassword,
   };
-};
-
-export default useAuth; 
+}; 

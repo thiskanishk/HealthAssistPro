@@ -1,0 +1,1 @@
+export type UserRole = 'doctor' | 'nurse' | 'admin' | 'patient'; 

@@ -1,80 +1,82 @@
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
+import path from 'path';
 
-const logLevels = {
-  error: 0,
-  warn: 1,
-  info: 2,
-  http: 3,
-  debug: 4,
-};
+const logDir = 'logs';
+const isDevelopment = process.env.NODE_ENV === 'development';
 
-const formatMetadata = (metadata: any) => {
-  const filteredMetadata = { ...metadata };
-  // Remove sensitive information
-  delete filteredMetadata.password;
-  delete filteredMetadata.token;
-  return filteredMetadata;
-};
-
-export const logger = winston.createLogger({
-  levels: logLevels,
-  format: winston.format.combine(
-    winston.format.timestamp(),
+// Define log format
+const logFormat = winston.format.combine(
+    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     winston.format.errors({ stack: true }),
-    winston.format.metadata({ fillExcept: ['message', 'level', 'timestamp'] }),
+    winston.format.splat(),
     winston.format.json()
-  ),
-  transports: [
-    // Error logs
-    new DailyRotateFile({
-      filename: 'logs/error-%DATE%.log',
-      datePattern: 'YYYY-MM-DD',
-      level: 'error',
-      maxFiles: '30d',
-      format: winston.format.combine(
-        winston.format.metadata({ fillExcept: ['message', 'level', 'timestamp'] }),
-        winston.format.json()
-      )
-    }),
-    // Combined logs
-    new DailyRotateFile({
-      filename: 'logs/combined-%DATE%.log',
-      datePattern: 'YYYY-MM-DD',
-      maxFiles: '30d'
-    }),
-    // Console output for development
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      )
-    })
-  ]
+);
+
+// Create logger instance
+const logger = winston.createLogger({
+    level: isDevelopment ? 'debug' : 'info',
+    format: logFormat,
+    defaultMeta: { service: 'health-assist-pro' },
+    transports: [
+        // Write all logs with level 'error' and below to 'error.log'
+        new DailyRotateFile({
+            filename: path.join(logDir, 'error-%DATE%.log'),
+            datePattern: 'YYYY-MM-DD',
+            zippedArchive: true,
+            maxSize: '20m',
+            maxFiles: '14d',
+            level: 'error',
+        }),
+
+        // Write all logs with level 'info' and below to 'combined.log'
+        new DailyRotateFile({
+            filename: path.join(logDir, 'combined-%DATE%.log'),
+            datePattern: 'YYYY-MM-DD',
+            zippedArchive: true,
+            maxSize: '20m',
+            maxFiles: '14d',
+        }),
+    ],
 });
 
+// If we're in development, log to the console with colors
+if (isDevelopment) {
+    logger.add(new winston.transports.Console({
+        format: winston.format.combine(
+            winston.format.colorize(),
+            winston.format.simple()
+        ),
+    }));
+}
+
+// Create a stream object for Morgan middleware
+export const stream = {
+    write: (message: string) => {
+        logger.info(message.trim());
+    },
+};
+
+// Create middleware for Express
 export const loggerMiddleware = (req: any, res: any, next: any) => {
-  const start = Date.now();
+    const start = Date.now();
 
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    const message = `${req.method} ${req.originalUrl}`;
-    const meta = {
-      method: req.method,
-      url: req.originalUrl,
-      status: res.statusCode,
-      duration,
-      ip: req.ip,
-      userId: req.user?.id,
-      userAgent: req.headers['user-agent']
-    };
+    // Log when the request ends
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        logger.info('Request completed', {
+            method: req.method,
+            url: req.originalUrl,
+            status: res.statusCode,
+            duration: `${duration}ms`,
+            userAgent: req.get('user-agent'),
+            ip: req.ip,
+            userId: req.user?.id,
+        });
+    });
 
-    if (res.statusCode >= 400) {
-      logger.warn(message, meta);
-    } else {
-      logger.info(message, meta);
-    }
-  });
+    next();
+};
 
-  next();
-}; 
+// Export logger instance
+export default logger; 
