@@ -1,0 +1,379 @@
+{
+  "info": {
+    "name": "HealthAssist Pro - Notification API",
+    "description": "API collection for the HealthAssist Pro notification system",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n\t\"email\": \"test@example.com\",\n\t\"password\": \"password123\"\n}"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"user\": {\n        \"id\": \"123\",\n        \"email\": \"test@example.com\",\n        \"name\": \"Test User\"\n    }\n}"
+            },
+            {
+              "name": "Invalid Credentials",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n\t\"email\": \"test@example.com\",\n\t\"password\": \"wrongpassword\"\n}"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n    \"error\": {\n        \"code\": \"INVALID_CREDENTIALS\",\n        \"message\": \"Invalid email or password\"\n    }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get All Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications?page=1&limit=10&type=appointment&category=medical&priority=high",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "type",
+                  "value": "appointment"
+                },
+                {
+                  "key": "category",
+                  "value": "medical"
+                },
+                {
+                  "key": "priority",
+                  "value": "high"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notifications",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"appointment\",\n  \"category\": \"medical\",\n  \"title\": \"Upcoming Appointment\",\n  \"message\": \"You have an appointment tomorrow\",\n  \"priority\": \"high\",\n  \"group\": \"appointments\",\n  \"sound\": {\n    \"enabled\": true,\n    \"type\": \"default\",\n    \"volume\": 0.8\n  },\n  \"data\": {\n    \"appointmentId\": \"123\",\n    \"doctorId\": \"456\"\n  },\n  \"expiresAt\": \"2024-03-20T15:00:00Z\",\n  \"actionUrl\": \"https://app.healthassist.pro/appointments/123\",\n  \"iconUrl\": \"https://app.healthassist.pro/icons/appointment.png\",\n  \"dismissible\": true,\n  \"tags\": [\"appointment\", \"followup\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Mark as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notifications/{{notificationId}}/read"
+          }
+        },
+        {
+          "name": "Delete Notification",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notifications/{{notificationId}}"
+          }
+        },
+        {
+          "name": "Get Notification Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/metrics?startDate={{startDate}}&endDate={{endDate}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "metrics"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "{{startDate}}"
+                },
+                {
+                  "key": "endDate",
+                  "value": "{{endDate}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Preferences",
+      "item": [
+        {
+          "name": "Get User Preferences",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notifications/preferences"
+          }
+        },
+        {
+          "name": "Update Preferences",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notifications/preferences",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"soundEnabled\": true,\n  \"volume\": 0.7,\n  \"categories\": {\n    \"medical\": {\n      \"enabled\": true,\n      \"priority\": \"high\",\n      \"sound\": {\n        \"enabled\": true,\n        \"type\": \"alert\",\n        \"volume\": 1.0\n      },\n      \"autoExpire\": 1440,\n      \"batchNotifications\": true,\n      \"batchInterval\": 30\n    }\n  },\n  \"types\": {\n    \"appointment\": true,\n    \"medication\": true\n  },\n  \"quietHours\": {\n    \"enabled\": true,\n    \"start\": \"22:00\",\n    \"end\": \"07:00\",\n    \"days\": [0, 6],\n    \"allowUrgent\": true,\n    \"allowedCategories\": [\"urgent\", \"medical\"]\n  },\n  \"showWhenOffline\": true,\n  \"maxUnread\": 100,\n  \"autoDismissRead\": 1440,\n  \"displayDuration\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "Update Category Preferences",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notifications/preferences/categories/{{category}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"priority\": \"high\",\n  \"sound\": {\n    \"enabled\": true,\n    \"type\": \"custom\",\n    \"volume\": 0.9,\n    \"customSound\": \"https://app.healthassist.pro/sounds/alert.mp3\"\n  },\n  \"autoExpire\": 1440,\n  \"batchNotifications\": true,\n  \"batchInterval\": 30\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Groups",
+      "item": [
+        {
+          "name": "Create Group",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notifications/groups",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Important Appointments\",\n  \"description\": \"High-priority medical appointments\",\n  \"enabled\": true,\n  \"priority\": \"high\",\n  \"sound\": \"alert\",\n  \"members\": [\"user123\", \"user456\"],\n  \"iconUrl\": \"https://app.healthassist.pro/icons/group.png\",\n  \"color\": \"#FF0000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update Group",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notifications/groups/{{groupId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"priority\": \"urgent\",\n  \"sound\": \"urgent-alert\",\n  \"members\": [\"user123\", \"user456\", \"user789\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Group",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notifications/groups/{{groupId}}"
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api"
+    },
+    {
+      "key": "authToken",
+      "value": "your-jwt-token",
+      "type": "string"
+    },
+    {
+      "key": "email",
+      "value": "test@example.com",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "your-password",
+      "type": "string"
+    },
+    {
+      "key": "notificationId",
+      "value": "notification-123"
+    },
+    {
+      "key": "groupId",
+      "value": "group-123"
+    },
+    {
+      "key": "category",
+      "value": "medical"
+    },
+    {
+      "key": "startDate",
+      "value": "2024-01-01T00:00:00Z"
+    },
+    {
+      "key": "endDate",
+      "value": "2024-12-31T23:59:59Z"
+    }
+  ]
+} 
