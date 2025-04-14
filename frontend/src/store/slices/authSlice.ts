@@ -2,17 +2,11 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import jwtDecode, { JwtPayload } from 'jwt-decode';
 import { AppDispatch } from '../index';
 
-export interface User {
+interface User {
   id: string;
   email: string;
-  firstName: string;
-  lastName: string;
-  role: 'doctor' | 'nurse' | 'admin';
-  specialization?: string;
-  licenseNumber?: string;
-  isEmailVerified: boolean;
-  createdAt: string;
-  updatedAt: string;
+  name: string;
+  role: string;
 }
 
 interface CustomJWTPayload extends JwtPayload {
@@ -21,17 +15,17 @@ interface CustomJWTPayload extends JwtPayload {
 }
 
 interface AuthState {
-  isAuthenticated: boolean;
   user: User | null;
   token: string | null;
+  isAuthenticated: boolean;
   loading: boolean;
   error: string | null;
 }
 
 const initialState: AuthState = {
-  isAuthenticated: false,
   user: null,
-  token: localStorage.getItem('token'),
+  token: null,
+  isAuthenticated: false,
   loading: false,
   error: null,
 };
@@ -82,25 +76,24 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    setLoading: (state: AuthState, action: PayloadAction<boolean>) => {
+    setCredentials: (
+      state,
+      action: PayloadAction<{ user: User; token: string }>
+    ) => {
+      state.user = action.payload.user;
+      state.token = action.payload.token;
+      state.isAuthenticated = true;
+    },
+    logout: (state) => {
+      state.user = null;
+      state.token = null;
+      state.isAuthenticated = false;
+    },
+    setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;
     },
     setError: (state: AuthState, action: PayloadAction<string | null>) => {
       state.error = action.payload;
-    },
-    setUser: (state: AuthState, action: PayloadAction<{ user: User; token: string }>) => {
-      state.isAuthenticated = true;
-      state.user = action.payload.user;
-      state.token = action.payload.token;
-      state.error = null;
-      localStorage.setItem('token', action.payload.token);
-    },
-    logout: (state: AuthState) => {
-      state.isAuthenticated = false;
-      state.user = null;
-      state.token = null;
-      state.error = null;
-      localStorage.removeItem('token');
     },
     updateUser: (state: AuthState, action: PayloadAction<Partial<User>>) => {
       if (state.user) {
@@ -127,5 +120,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setLoading, setError, setUser, logout, updateUser } = authSlice.actions;
+export const { setCredentials, logout, setLoading, setError, updateUser } = authSlice.actions;
 export default authSlice.reducer; 
