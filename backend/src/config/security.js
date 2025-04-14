@@ -17,9 +17,9 @@ module.exports = {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", process.env.API_URL || "http://localhost:5000"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
         objectSrc: ["'none'"],
         mediaSrc: ["'self'"],
         frameSrc: ["'none'"]

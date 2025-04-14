@@ -3,23 +3,25 @@ version: '3.8'
 services:
   # Backend API service
   backend:
-    build: 
+    build:
       context: ./backend
-      dockerfile: Dockerfile
+      target: development
     container_name: healthassist-api
     restart: unless-stopped
     env_file: ./backend/.env
     environment:
-      - NODE_ENV=production
-      - MONGODB_URI=mongodb://mongodb:27017/health-assist-pro
+      - MONGODB_URI=mongodb://mongodb:27017/healthassistpro
+      - NODE_ENV=development
+      - JWT_SECRET=${JWT_SECRET}
+      - REDIS_URL=redis://redis:6379
     ports:
       - "5000:5000"
     volumes:
-      - ./backend:/usr/src/app
-      - /usr/src/app/node_modules
-      - ./logs:/usr/src/app/logs
+      - ./backend:/app
+      - /app/node_modules
     depends_on:
       - mongodb
+      - redis
     networks:
       - healthassist-network
 
@@ -27,11 +29,17 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      target: development
     container_name: healthassist-web
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000
+      - NODE_ENV=development
     depends_on:
       - backend
     networks:
@@ -39,7 +47,7 @@ services:
 
   # MongoDB service
   mongodb:
-    image: mongo:5.0
+    image: mongo:4.4
     container_name: healthassist-db
     restart: unless-stopped
     environment:
@@ -68,9 +76,16 @@ services:
     networks:
       - healthassist-network
 
+  redis:
+    image: redis:6-alpine
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+
 volumes:
   mongodb_data:
-    driver: local
+  redis_data:
 
 networks:
   healthassist-network:

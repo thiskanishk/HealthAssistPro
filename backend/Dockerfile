@@ -1,15 +1,39 @@
-# Use Node.js LTS version
-FROM node:18-alpine
+# Build stage
+FROM node:18-alpine AS builder
 
-# Set working directory
-WORKDIR /usr/src/app
+WORKDIR /app
 
-# Install dependencies first (for better caching)
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+# Development stage
+FROM node:18-alpine AS development
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+CMD ["npm", "run", "dev"]
+
+# Production stage
+FROM node:18-alpine AS production
+
+WORKDIR /app
+
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Copy source code
 COPY . .
+
+CMD ["npm", "start"]
+
+# Set working directory
+WORKDIR /usr/src/app
 
 # Create volume for logs
 VOLUME [ "/usr/src/app/logs" ]

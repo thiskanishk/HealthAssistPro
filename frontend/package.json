@@ -18,12 +18,19 @@
     "react-router-dom": "^6.11.0",
     "typescript": "^5.0.4",
     "react-scripts": "5.0.1",
-    "@emotion/types": "^0.7.0"
+    "@emotion/types": "^0.7.0",
+    "@testing-library/jest-dom": "^5.16.5",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^14.4.3",
+    "msw": "^1.2.1",
+    "notistack": "^3.0.1"
   },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test",
+    "test": "react-scripts test --transformIgnorePatterns \"node_modules/(?!@codemirror)/\"",
+    "test:coverage": "react-scripts test --coverage --watchAll=false",
+    "test:ci": "react-scripts test --ci --coverage --watchAll=false",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -51,5 +58,21 @@
     "eslint-plugin-react": "^7.32.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "@types/jest": "^29.5.0"
+  },
+  "jest": {
+    "collectCoverageFrom": [
+      "src/**/*.{js,jsx,ts,tsx}",
+      "!src/index.tsx",
+      "!src/reportWebVitals.ts",
+      "!src/**/*.d.ts"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    }
   }
 } 

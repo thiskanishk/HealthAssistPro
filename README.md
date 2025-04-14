@@ -1,110 +1,113 @@
-# HealthAssist Pro
+# HealthAssistPro - Healthcare Management System
 
-A comprehensive healthcare platform that empowers patients and healthcare providers with seamless communication, appointment management, and personalized health tracking.
+## Overview
+HealthAssistPro is a comprehensive healthcare management system that leverages AI for diagnosis assistance, prescription management, and patient care. The system provides real-time interaction between healthcare providers and patients, advanced medical data visualization, and intelligent health monitoring.
 
-## 🌟 Overview
+## Key Features
 
-HealthAssist Pro revolutionizes healthcare management by providing an integrated platform for:
-- Virtual consultations and telemedicine
-- Health monitoring and tracking
-- Appointment scheduling and management
-- Secure medical record access
-- Real-time communication between patients and providers
-- Medication reminders and adherence tracking
-- Emergency assistance and alerts
+### AI-Powered Diagnosis
+- Symptom analysis with confidence levels
+- AI-assisted diagnosis suggestions
+- Medical history analysis
+- Treatment recommendations
+- Drug interaction checking
 
-## 🚀 Features
-
-### 📅 Appointment Management
-- Smart scheduling system with AI-powered slot recommendations
-- Virtual waiting room
-- Automated reminders and confirmations
-- Calendar integration (Google Calendar, Apple Calendar)
-- Multi-provider support
-- Emergency appointment prioritization
-
-### 👨‍⚕️ Telemedicine
-- HD video consultations
-- Secure chat messaging
-- File sharing and medical document exchange
-- E-prescriptions
-- Session recording (optional)
-- Multi-participant calls for family consultations
-
-### 📊 Health Monitoring
-- Vital signs tracking
-- Symptom logging
-- Medication adherence monitoring
-- Progress charts and analytics
-- Integration with wearable devices
-- Custom health goals and milestones
-
-### 🔔 Smart Notifications
-- Real-time health alerts
-- Appointment reminders
-- Medication schedules
-- Lab result notifications
-- Custom notification preferences
-- Quiet hours and priority settings
-
-### 📝 Medical Records
-- Secure electronic health records (EHR)
-- Document upload and management
-- Lab result integration
-- Prescription history
-- Vaccination records
+### Patient Management
+- Electronic Health Records (EHR)
 - Medical history timeline
+- Lab results tracking
+- Appointment scheduling
+- Prescription management
 
-### 🆘 Emergency Services
-- One-tap emergency contact
-- GPS location sharing
-- Emergency contact management
-- Quick access to nearby facilities
-- Automated emergency notifications
-- Critical health information sharing
+### Real-time Communication
+- Secure chat with healthcare providers
+- File sharing capabilities
+- Appointment notifications
+- Medication reminders
+- Real-time health alerts
 
-### 💊 Medication Management
-- Digital prescriptions
-- Refill reminders
-- Drug interaction warnings
-- Pharmacy integration
-- Medication schedule optimization
-- Side effect tracking
+### Data Visualization
+- Health metrics tracking
+- Lab results visualization
+- Treatment progress monitoring
+- Medical history analytics
+- Trend analysis
 
-## 🛠️ Technical Stack
+### Security Features
+- HIPAA compliance
+- End-to-end encryption
+- Role-based access control
+- Audit logging
+- Rate limiting
 
-### Frontend
-- React 18 with TypeScript
-- Material-UI for modern UI components
-- Redux Toolkit for state management
-- WebRTC for video consultations
-- PWA support for mobile access
-- End-to-end encryption for sensitive data
+## Technology Stack
 
 ### Backend
 - Node.js with Express
-- MongoDB for primary database
-- Redis for caching and real-time features
-- Socket.io for real-time communications
-- JWT for authentication
-- HIPAA-compliant data storage
+- MongoDB for database
+- Redis for caching and session management
+- Socket.IO for real-time communication
+- OpenAI GPT-4 for AI features
 
-### Mobile
-- React Native for iOS and Android
-- Native device feature integration
-- Offline support
-- Push notifications
-- Biometric authentication
+### Frontend
+- React with TypeScript
+- Material-UI for components
+- Recharts for data visualization
+- React Query for state management
+- Socket.IO client for real-time features
 
-### Infrastructure
-- AWS cloud infrastructure
-- Docker containerization
-- Kubernetes orchestration
-- CI/CD with GitHub Actions
-- Automated testing and monitoring
-- HIPAA-compliant security measures
+## Getting Started
 
-## 🏗️ Project Structure
+### Prerequisites
+- Node.js (v14 or higher)
+- MongoDB
+- Redis
+- OpenAI API key
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/HealthAssistPro.git
+cd HealthAssistPro
+```
+
+2. Install dependencies:
+```bash
+# Install backend dependencies
+cd backend
+npm install
+
+# Install frontend dependencies
+cd ../frontend
+npm install
+```
+
+3. Set up environment variables:
+```bash
+# Backend (.env)
+PORT=5000
+MONGODB_URI=mongodb://localhost:27017/healthassistpro
+REDIS_URL=redis://localhost:6379
+JWT_SECRET=your_jwt_secret
+OPENAI_API_KEY=your_openai_api_key
+
+# Frontend (.env)
+REACT_APP_API_URL=http://localhost:5000
+```
+
+4. Start the development servers:
+```bash
+# Start backend
+cd backend
+npm run dev
+
+# Start frontend
+cd frontend
+npm start
+```
+
+## Project Structure
 
 ```
 health-assist-pro/

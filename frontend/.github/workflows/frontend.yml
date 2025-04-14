@@ -1,0 +1,47 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run Linter
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run Tests
+        working-directory: frontend
+        run: npm run test:ci
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: build
+          path: frontend/build 

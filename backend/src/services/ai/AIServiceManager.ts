@@ -1,68 +1,67 @@
-import { Configuration, OpenAIApi } from 'openai';
-import { logger } from '../../utils/logger';
-import { cacheService } from '../cache';
+import { MedicalDiagnosisService } from './MedicalDiagnosisService';
+import { SymptomCheckerService } from './SymptomCheckerService';
+import { MedicalImageAnalysisService } from './MedicalImageAnalysisService';
+import { HealthAnalyticsService } from './HealthAnalyticsService';
+import { createLogger } from '../../utils/logger';
 
 export class AIServiceManager {
-  private openai: OpenAIApi;
-  private static instance: AIServiceManager;
+    private static instance: AIServiceManager;
+    private services: Map<string, any>;
+    private logger = createLogger('AIServiceManager');
 
-  private constructor() {
-    const configuration = new Configuration({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-    this.openai = new OpenAIApi(configuration);
-  }
-
-  public static getInstance(): AIServiceManager {
-    if (!AIServiceManager.instance) {
-      AIServiceManager.instance = new AIServiceManager();
+    private constructor() {
+        this.services = new Map();
+        this.initializeServices();
     }
-    return AIServiceManager.instance;
-  }
 
-  async generateCompletion(
-    prompt: string,
-    options: {
-      model?: string;
-      temperature?: number;
-      maxTokens?: number;
-      cacheKey?: string;
-      cacheTTL?: number;
-    } = {}
-  ) {
-    const {
-      model = 'gpt-4',
-      temperature = 0.4,
-      maxTokens = 1000,
-      cacheKey,
-      cacheTTL = 3600
-    } = options;
-
-    try {
-      if (cacheKey) {
-        const cached = await cacheService.get(cacheKey);
-        if (cached) return cached;
-      }
-
-      const response = await this.openai.createChatCompletion({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature,
-        max_tokens: maxTokens,
-      });
-
-      const result = response.data.choices[0]?.message?.content;
-
-      if (cacheKey && result) {
-        await cacheService.set(cacheKey, result, cacheTTL);
-      }
-
-      return result;
-    } catch (error) {
-      logger.error('AI completion failed', { error, prompt });
-      throw error;
+    public static getInstance(): AIServiceManager {
+        if (!AIServiceManager.instance) {
+            AIServiceManager.instance = new AIServiceManager();
+        }
+        return AIServiceManager.instance;
     }
-  }
-}
 
-export const aiService = AIServiceManager.getInstance(); 
+    private initializeServices(): void {
+        try {
+            this.services.set('diagnosis', new MedicalDiagnosisService());
+            this.services.set('symptomChecker', new SymptomCheckerService());
+            this.services.set('imageAnalysis', new MedicalImageAnalysisService());
+            this.services.set('healthAnalytics', new HealthAnalyticsService());
+        } catch (error) {
+            this.logger.error('Failed to initialize AI services', { error });
+            throw error;
+        }
+    }
+
+    public getService(serviceName: string): any {
+        const service = this.services.get(serviceName);
+        if (!service) {
+            throw new Error(`AI service '${serviceName}' not found`);
+        }
+        return service;
+    }
+
+    public async healthCheck(): Promise<{
+        status: string;
+        services: Record<string, boolean>;
+    }> {
+        const serviceStatus: Record<string, boolean> = {};
+        
+        for (const [name, service] of this.services.entries()) {
+            try {
+                await service.ping();
+                serviceStatus[name] = true;
+            } catch (error) {
+                this.logger.error(`Health check failed for ${name}`, { error });
+                serviceStatus[name] = false;
+            }
+        }
+
+        return {
+            status: Object.values(serviceStatus).every(status => status) 
+                ? 'healthy' 
+                : 'degraded',
+            services: serviceStatus
+        };
+    }
+} 

@@ -215,4 +215,76 @@ Cache headers are included in responses:
 ```http
 Cache-Control: public, max-age=300
 ETag: "33a64df551425fcc55e4d42a148795d9f25f89d4"
-``` 
+```
+
+## API Documentation
+
+### POST /api/auth/login
+Login with email and password.
+
+**Request:**
+```json
+{
+  "email": "string",
+  "password": "string"
+}
+```
+
+**Response:**
+```json
+{
+  "token": "string",
+  "user": {
+    "id": "string",
+    "email": "string",
+    "role": "string"
+  }
+}
+```
+
+### POST /api/auth/register
+Register a new user.
+
+**Request:**
+```json
+{
+  "email": "string",
+  "password": "string",
+  "firstName": "string",
+  "lastName": "string",
+  "role": "string"
+}
+```
+
+### POST /api/diagnosis
+Create a new diagnosis.
+
+**Request:**
+```json
+{
+  "patientId": "string",
+  "symptoms": ["string"],
+  "diagnosis": "string",
+  "confidence": "number",
+  "recommendations": ["string"]
+}
+```
+
+### GET /api/diagnosis/{id}
+Get diagnosis by ID.
+
+### POST /api/prescriptions
+Create a new prescription.
+
+**Request:**
+```json
+{
+  "patientId": "string",
+  "medication": "string",
+  "dosage": "string",
+  "frequency": "string",
+  "duration": "string"
+}
+```
+
+[... continue with all API endpoints] 
