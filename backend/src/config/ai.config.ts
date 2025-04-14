@@ -13,6 +13,7 @@ interface AIConfig {
         diagnosisModel: AIModelConfig;
         medicalTranscriptionModel: AIModelConfig;
         healthAnalyticsModel: AIModelConfig;
+        prescriptionModel: AIModelConfig;
     };
     azure: {
         healthInsightsModel: AIModelConfig;
@@ -52,6 +53,15 @@ export const aiConfig: AIConfig = {
             maxTokens: 3000,
             temperature: 0.4,
             timeout: 45000
+        },
+        prescriptionModel: {
+            modelName: 'gpt-4',
+            provider: 'openai',
+            version: '1.0',
+            apiEndpoint: process.env.OPENAI_API_ENDPOINT || 'https://api.openai.com/v1',
+            maxTokens: 2000,
+            temperature: 0.2,
+            timeout: 30000
         }
     },
     azure: {
@@ -59,7 +69,7 @@ export const aiConfig: AIConfig = {
             modelName: 'azure-health-insights',
             provider: 'azure',
             version: '2.0',
-            apiEndpoint: process.env.AZURE_HEALTH_ENDPOINT,
+            apiEndpoint: process.env.AZURE_HEALTH_ENDPOINT || 'https://api.cognitive.azure.com/health',
             maxTokens: 2000,
             temperature: 0.3,
             timeout: 30000
@@ -68,7 +78,7 @@ export const aiConfig: AIConfig = {
             modelName: 'azure-medical-imaging',
             provider: 'azure',
             version: '1.0',
-            apiEndpoint: process.env.AZURE_VISION_ENDPOINT,
+            apiEndpoint: process.env.AZURE_VISION_ENDPOINT || 'https://api.cognitive.azure.com/vision',
             maxTokens: 0,
             temperature: 0,
             timeout: 45000

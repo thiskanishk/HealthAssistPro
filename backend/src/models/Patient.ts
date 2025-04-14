@@ -1,6 +1,22 @@
 import mongoose, { Document, Schema, Model } from 'mongoose';
 import { IUser } from './User';
 
+export interface IAiDiagnosis {
+    date: Date;
+    symptoms: string[];
+    conditions: Array<{ condition: string; confidence: number }>;
+    recommendedTests: string[];
+    treatmentSuggestions: string[];
+    notes?: string;
+    reviewedBy: mongoose.Types.ObjectId;
+    status: 'pending' | 'reviewed' | 'confirmed' | 'rejected';
+    feedback?: {
+        rating: number;
+        comments?: string;
+        providedBy: mongoose.Types.ObjectId;
+    };
+}
+
 export interface IPatient extends Document {
     userId: Schema.Types.ObjectId | IUser;
     firstName: string;
@@ -54,6 +70,17 @@ export interface IPatient extends Document {
         prescriptions: string[];
         notes: string;
     }>;
+    vitalSigns?: {
+        height?: number;
+        weight?: number;
+        bloodPressure?: string;
+        heartRate?: number;
+        temperature?: number;
+        respiratoryRate?: number;
+        oxygenSaturation?: number;
+        lastUpdated?: Date;
+    };
+    aiDiagnoses: IAiDiagnosis[];
     createdAt: Date;
     updatedAt: Date;
     isActive: boolean;
@@ -248,17 +275,71 @@ const PatientSchema = new Schema<IPatient>({
         },
         symptoms: [{
             type: String,
-            required: true
+            trim: true
         }],
-        diagnosis: {
-            type: String,
-            required: true
-        },
-        prescriptions: [{
-            type: String
-        }],
+        diagnosis: String,
+        prescriptions: [String],
         notes: String
     }],
+    vitalSigns: {
+        height: Number, // in cm
+        weight: Number, // in kg
+        bloodPressure: String, // systolic/diastolic
+        heartRate: Number, // bpm
+        temperature: Number, // celsius
+        respiratoryRate: Number, // breaths per minute
+        oxygenSaturation: Number, // percentage
+        lastUpdated: {
+            type: Date,
+            default: Date.now
+        }
+    },
+    aiDiagnoses: [{
+        date: {
+            type: Date,
+            default: Date.now
+        },
+        symptoms: [{
+            type: String,
+            required: true
+        }],
+        conditions: [{
+            condition: String,
+            confidence: Number
+        }],
+        recommendedTests: [String],
+        treatmentSuggestions: [String],
+        notes: String,
+        reviewedBy: {
+            type: Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        status: {
+            type: String,
+            enum: ['pending', 'reviewed', 'confirmed', 'rejected'],
+            default: 'pending'
+        },
+        feedback: {
+            rating: {
+                type: Number,
+                min: 1,
+                max: 5
+            },
+            comments: String,
+            providedBy: {
+                type: Schema.Types.ObjectId,
+                ref: 'User'
+            }
+        }
+    }],
+    createdAt: {
+        type: Date,
+        default: Date.now
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now
+    },
     isActive: {
         type: Boolean,
         default: true
@@ -272,14 +353,14 @@ PatientSchema.virtual('fullName').get(function(this: IPatient) {
     return `${this.firstName} ${this.lastName}`;
 });
 
-// Method to calculate patient's age
+// Method to get patient's age
 PatientSchema.methods.getAge = function(this: IPatient): number {
     const today = new Date();
     const birthDate = new Date(this.dateOfBirth);
     let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
+    const m = today.getMonth() - birthDate.getMonth();
     
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
         age--;
     }
     
@@ -287,19 +368,13 @@ PatientSchema.methods.getAge = function(this: IPatient): number {
 };
 
 // Method to get recent visits
-PatientSchema.methods.getRecentVisits = function(this: IPatient, limit: number = 5): Array<IVisit> {
+PatientSchema.methods.getRecentVisits = function(this: IPatient, limit = 5): IVisit[] {
     return this.visits
-        .sort((a, b) => b.date.getTime() - a.date.getTime())
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, limit);
 };
 
-// Indexes
-PatientSchema.index({ userId: 1 });
-PatientSchema.index({ 'contactInfo.email': 1 });
-PatientSchema.index({ 'contactInfo.phone': 1 });
-PatientSchema.index({ lastName: 1, firstName: 1 });
-PatientSchema.index({ createdAt: -1 });
-
-const Patient = mongoose.model<IPatient>('Patient', PatientSchema);
+// Create and export the Patient model
+export const Patient = mongoose.model<IPatient>('Patient', PatientSchema);
 
 export default Patient; 
