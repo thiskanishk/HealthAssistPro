@@ -10,7 +10,8 @@
     "test:watch": "jest --watch --runInBand",
     "test:coverage": "jest --coverage --runInBand",
     "lint": "eslint .",
-    "security-check": "npm audit && snyk test"
+    "security-check": "npm audit && snyk test",
+    "test-db": "node src/utils/testConnection.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
