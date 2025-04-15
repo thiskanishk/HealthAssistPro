@@ -65,38 +65,53 @@ const SelfDiagnosisPage = () => {
 
   const validateVitals = (vitals) => {
     const errors = {};
-    
-    if (vitals.temperature) {
+
+    // Validate temperature
+    if (!vitals.temperature) {
+      errors.temperature = 'Temperature is required';
+    } else {
       const temp = parseFloat(vitals.temperature);
-      if (temp < 95 || temp > 108) {
+      if (isNaN(temp) || temp < 95 || temp > 108) {
         errors.temperature = 'Temperature must be between 95°F and 108°F';
       }
     }
 
-    if (vitals.bloodPressureSystolic) {
+    // Validate blood pressure systolic
+    if (!vitals.bloodPressureSystolic) {
+      errors.bloodPressureSystolic = 'Systolic pressure is required';
+    } else {
       const systolic = parseInt(vitals.bloodPressureSystolic);
-      if (systolic < 70 || systolic > 200) {
+      if (isNaN(systolic) || systolic < 70 || systolic > 200) {
         errors.bloodPressureSystolic = 'Systolic pressure must be between 70 and 200';
       }
     }
 
-    if (vitals.bloodPressureDiastolic) {
+    // Validate blood pressure diastolic
+    if (!vitals.bloodPressureDiastolic) {
+      errors.bloodPressureDiastolic = 'Diastolic pressure is required';
+    } else {
       const diastolic = parseInt(vitals.bloodPressureDiastolic);
-      if (diastolic < 40 || diastolic > 130) {
+      if (isNaN(diastolic) || diastolic < 40 || diastolic > 130) {
         errors.bloodPressureDiastolic = 'Diastolic pressure must be between 40 and 130';
       }
     }
 
-    if (vitals.heartRate) {
+    // Validate heart rate
+    if (!vitals.heartRate) {
+      errors.heartRate = 'Heart rate is required';
+    } else {
       const hr = parseInt(vitals.heartRate);
-      if (hr < 40 || hr > 200) {
+      if (isNaN(hr) || hr < 40 || hr > 200) {
         errors.heartRate = 'Heart rate must be between 40 and 200 BPM';
       }
     }
 
-    if (vitals.oxygenSaturation) {
+    // Validate oxygen saturation
+    if (!vitals.oxygenSaturation) {
+      errors.oxygenSaturation = 'Oxygen saturation is required';
+    } else {
       const o2 = parseInt(vitals.oxygenSaturation);
-      if (o2 < 70 || o2 > 100) {
+      if (isNaN(o2) || o2 < 70 || o2 > 100) {
         errors.oxygenSaturation = 'Oxygen saturation must be between 70% and 100%';
       }
     }
@@ -106,6 +121,13 @@ const SelfDiagnosisPage = () => {
 
   const handleSubmit = async () => {
     try {
+      // Validate symptoms first
+      if (!formData.symptoms || formData.symptoms.length === 0) {
+        setError('Please enter at least one symptom');
+        setActiveStep(0);
+        return;
+      }
+
       setLoading(true);
       setError('');
 
@@ -116,22 +138,29 @@ const SelfDiagnosisPage = () => {
         throw new Error('Please correct the vital signs values');
       }
 
+      // Safe parsing of values with fallbacks
+      const temperature = parseFloat(formData.vitals.temperature) || 98.6;
+      const systolic = parseInt(formData.vitals.bloodPressureSystolic) || 120;
+      const diastolic = parseInt(formData.vitals.bloodPressureDiastolic) || 80;
+      const heartRate = parseInt(formData.vitals.heartRate) || 70;
+      const oxygenSaturation = parseInt(formData.vitals.oxygenSaturation) || 98;
+
       const response = await fetch('/api/self-diagnose', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
         },
         body: JSON.stringify({
           symptoms: formData.symptoms,
           vitals: {
-            temperature: parseFloat(formData.vitals.temperature),
+            temperature,
             bloodPressure: {
-              systolic: parseInt(formData.vitals.bloodPressureSystolic),
-              diastolic: parseInt(formData.vitals.bloodPressureDiastolic)
+              systolic,
+              diastolic
             },
-            heartRate: parseInt(formData.vitals.heartRate),
-            oxygenSaturation: parseInt(formData.vitals.oxygenSaturation)
+            heartRate,
+            oxygenSaturation
           }
         })
       });

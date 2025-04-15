@@ -1,111 +1,75 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { RootState } from '../index';
 
-export type Severity = 'error' | 'warning' | 'info' | 'success';
-
-interface ErrorState {
-  message: string | null;
-  severity: Severity;
-  source?: string;
-  timestamp?: number;
+export interface Notification {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  autoHide?: boolean;
+  duration?: number;
 }
 
-interface LoadingState {
-  [key: string]: boolean;
-}
-
-interface UIState {
-  error: ErrorState | null;
-  loading: LoadingState;
-  theme: 'light' | 'dark';
+export interface UIState {
+  darkMode: boolean;
   sidebarOpen: boolean;
-  notifications: {
-    unread: number;
-    list: Array<{
-      id: string;
-      message: string;
-      type: string;
-      read: boolean;
-      timestamp: number;
-    }>;
-  };
+  notifications: Notification[];
+  loading: boolean;
 }
 
 const initialState: UIState = {
-  error: null,
-  loading: {},
-  theme: 'light',
+  darkMode: localStorage.getItem('darkMode') === 'true',
   sidebarOpen: true,
-  notifications: {
-    unread: 0,
-    list: [],
-  },
+  notifications: [],
+  loading: false,
 };
 
-export const uiSlice = createSlice({
+const uiSlice = createSlice({
   name: 'ui',
   initialState,
   reducers: {
-    setError: (state, action: PayloadAction<ErrorState>) => {
-      state.error = {
-        ...action.payload,
-        timestamp: Date.now(),
-      };
-    },
-    clearError: (state) => {
-      state.error = null;
-    },
-    setLoading: (state, action: PayloadAction<{ key: string; value: boolean }>) => {
-      state.loading[action.payload.key] = action.payload.value;
-    },
-    toggleTheme: (state) => {
-      state.theme = state.theme === 'light' ? 'dark' : 'light';
+    toggleDarkMode: (state) => {
+      state.darkMode = !state.darkMode;
+      localStorage.setItem('darkMode', String(state.darkMode));
     },
     toggleSidebar: (state) => {
       state.sidebarOpen = !state.sidebarOpen;
     },
-    addNotification: (state, action: PayloadAction<{
-      message: string;
-      type: string;
-    }>) => {
-      state.notifications.list.unshift({
-        id: Date.now().toString(),
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
+    },
+    addNotification: (state, action: PayloadAction<Omit<Notification, 'id'>>) => {
+      const id = Date.now().toString();
+      state.notifications.push({
         ...action.payload,
-        read: false,
-        timestamp: Date.now(),
+        id,
+        autoHide: action.payload.autoHide ?? true,
+        duration: action.payload.duration ?? 5000,
       });
-      state.notifications.unread += 1;
     },
-    markNotificationAsRead: (state, action: PayloadAction<string>) => {
-      const notification = state.notifications.list.find(n => n.id === action.payload);
-      if (notification && !notification.read) {
-        notification.read = true;
-        state.notifications.unread -= 1;
-      }
+    removeNotification: (state, action: PayloadAction<string>) => {
+      state.notifications = state.notifications.filter(
+        (notification) => notification.id !== action.payload
+      );
     },
-    clearAllNotifications: (state) => {
-      state.notifications.list = [];
-      state.notifications.unread = 0;
+    clearNotifications: (state) => {
+      state.notifications = [];
     },
   },
 });
 
 export const {
-  setError,
-  clearError,
-  setLoading,
-  toggleTheme,
+  toggleDarkMode,
   toggleSidebar,
+  setLoading,
   addNotification,
-  markNotificationAsRead,
-  clearAllNotifications,
+  removeNotification,
+  clearNotifications,
 } = uiSlice.actions;
 
+export default uiSlice.reducer;
+
 // Selectors
-export const selectError = (state: RootState) => state.ui.error;
-export const selectIsLoading = (key: string) => (state: RootState) => state.ui.loading[key];
-export const selectTheme = (state: RootState) => state.ui.theme;
+export const selectDarkMode = (state: RootState) => state.ui.darkMode;
 export const selectSidebarOpen = (state: RootState) => state.ui.sidebarOpen;
 export const selectNotifications = (state: RootState) => state.ui.notifications;
-
-export default uiSlice.reducer; 
+export const selectLoading = (state: RootState) => state.ui.loading; 

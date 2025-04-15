@@ -1,5 +1,4 @@
 import winston from 'winston';
-import DailyRotateFile from 'winston-daily-rotate-file';
 import config from '../config/server.config';
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
@@ -19,35 +18,21 @@ const customFormat = printf(({ level, message, timestamp, stack, ...metadata }) 
 });
 
 const logger = winston.createLogger({
-    level: config.server.logging.level,
+    level: config.server.logging.level || 'info',
     format: combine(
         timestamp(),
         errors({ stack: true }),
         customFormat
     ),
     transports: [
-        new DailyRotateFile({
-            filename: `${config.server.logging.directory}/error-%DATE%.log`,
-            datePattern: 'YYYY-MM-DD',
-            level: 'error',
-            maxFiles: '30d'
-        }),
-        new DailyRotateFile({
-            filename: `${config.server.logging.directory}/combined-%DATE%.log`,
-            datePattern: 'YYYY-MM-DD',
-            maxFiles: '30d'
+        new winston.transports.Console({
+            format: combine(
+                colorize(),
+                timestamp(),
+                customFormat
+            )
         })
     ]
 });
 
-if (process.env.NODE_ENV !== 'production') {
-    logger.add(new winston.transports.Console({
-        format: combine(
-            colorize(),
-            timestamp(),
-            customFormat
-        )
-    }));
-}
-
-export default logger; 
+export default logger;

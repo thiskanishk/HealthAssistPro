@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String           @id @default(uuid())
+  email             String           @unique
+  password          String
+  firstName         String
+  lastName          String
+  role              String
+  specialization    String?
+  licenseNumber     String?
+  isEmailVerified   Boolean          @default(false)
+  status            String           @default("active")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  prescriptions     Prescription[]   @relation("DoctorPrescriptions")
+  patients          Patient[]        @relation("DoctorPatients")
+  diagnoses         Diagnosis[]      @relation("DoctorDiagnoses")
+  diagnosisRequests DiagnosisRequest[] @relation("DoctorDiagnosisRequests")
+  activityLogs      ActivityLog[]    @relation("UserActivityLogs")
+}
+
+model Patient {
+  id                String           @id @default(uuid())
+  userId            String
+  doctor            User             @relation("DoctorPatients", fields: [doctorId], references: [id])
+  doctorId          String
+  dateOfBirth       DateTime
+  gender            String
+  bloodType         String?
+  allergies         String?
+  chronicConditions String?
+  vitalSigns        VitalSigns?
+  medicalHistory    MedicalHistory?
+  prescriptions     Prescription[]   @relation("PatientPrescriptions")
+  diagnoses         Diagnosis[]      @relation("PatientDiagnoses")
+  diagnosisRequests DiagnosisRequest[] @relation("PatientDiagnosisRequests")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model Prescription {
+  id          String       @id @default(uuid())
+  patient     Patient      @relation("PatientPrescriptions", fields: [patientId], references: [id])
+  patientId   String
+  doctor      User         @relation("DoctorPrescriptions", fields: [doctorId], references: [id])
+  doctorId    String
+  medications Medication[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Medication {
+  id              String       @id @default(uuid())
+  name            String
+  dosage          String
+  frequency       String
+  duration        Int?
+  notes           String?
+  prescription    Prescription @relation(fields: [prescriptionId], references: [id])
+  prescriptionId  String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model VitalSigns {
+  id                String    @id @default(uuid())
+  patient           Patient   @relation(fields: [patientId], references: [id])
+  patientId         String    @unique
+  temperature       Float?
+  bloodPressure     String?
+  heartRate         Int?
+  respiratoryRate   Int?
+  oxygenSaturation  Float?
+  weight            Float?
+  height            Float?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model MedicalHistory {
+  id              String    @id @default(uuid())
+  patient         Patient   @relation(fields: [patientId], references: [id])
+  patientId       String    @unique
+  conditions      String[]
+  surgeries       String[]
+  medications     String[]
+  familyHistory   String[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Diagnosis {
+  id              String    @id @default(uuid())
+  patient         Patient   @relation("PatientDiagnoses", fields: [patientId], references: [id])
+  patientId       String
+  doctor          User      @relation("DoctorDiagnoses", fields: [doctorId], references: [id])
+  doctorId        String
+  symptoms        String[]
+  conditions      DiagnosisCondition[]
+  treatmentPlan   String
+  aiConfidenceScore Float
+  status          String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model DiagnosisCondition {
+  id              String    @id @default(uuid())
+  diagnosis       Diagnosis @relation(fields: [diagnosisId], references: [id])
+  diagnosisId     String
+  name            String
+  confidence      Float
+  description     String?
+  recommendedTreatments String[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model DiagnosisRequest {
+  id              String    @id @default(uuid())
+  patient         Patient   @relation("PatientDiagnosisRequests", fields: [patientId], references: [id])
+  patientId       String
+  doctor          User      @relation("DoctorDiagnosisRequests", fields: [doctorId], references: [id])
+  doctorId        String
+  symptoms        String[]
+  notes           String?
+  status          String    @default("pending")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model ActivityLog {
+  id              String    @id @default(uuid())
+  user            User      @relation("UserActivityLogs", fields: [userId], references: [id])
+  userId          String
+  activityType    String
+  endpoint        String
+  method          String
+  ip              String
+  userAgent       String
+  status          Int
+  timestamp       DateTime  @default(now())
+}
+
+

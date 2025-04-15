@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, MouseEvent } from 'react';
 import {
     Badge,
     IconButton,
@@ -15,42 +15,31 @@ import {
 } from '@mui/material';
 import {
     Notifications,
-    MedicationAlert,
+    Medication,
     Event,
     Assignment,
     Check
 } from '@mui/icons-material';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useSnackbar } from 'notistack';
-import { getNotifications, markNotificationRead } from '../../services/api/notifications';
-
-interface Notification {
-    id: string;
-    type: 'medication' | 'appointment' | 'lab' | 'general';
-    title: string;
-    message: string;
-    timestamp: string;
-    read: boolean;
-    priority: 'high' | 'medium' | 'low';
-}
+import { getNotifications, markNotificationRead, Notification } from '../../services/api/notifications';
 
 export const NotificationManager: React.FC = () => {
-    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
     const { enqueueSnackbar } = useSnackbar();
+    const queryClient = useQueryClient();
     
-    const { data: notifications, isLoading } = useQuery(
-        ['notifications'],
-        getNotifications,
-        {
-            refetchInterval: 30000 // Refetch every 30 seconds
-        }
-    );
+    const { data: notifications = [], isLoading } = useQuery({
+        queryKey: ['notifications'],
+        queryFn: getNotifications
+    });
 
-    const markReadMutation = useMutation(markNotificationRead, {
+    const markReadMutation = useMutation({
+        mutationFn: markNotificationRead,
         onSuccess: () => {
             // Refetch notifications
-            queryClient.invalidateQueries(['notifications']);
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
         }
     });
 
@@ -61,7 +50,7 @@ export const NotificationManager: React.FC = () => {
         }
     }, []);
 
-    const handleNotificationClick = (event: React.MouseEvent<HTMLElement>) => {
+    const handleNotificationClick = (event: MouseEvent<HTMLElement>) => {
         setAnchorEl(event.currentTarget);
     };
 
@@ -76,7 +65,7 @@ export const NotificationManager: React.FC = () => {
     const getNotificationIcon = (type: string) => {
         switch (type) {
             case 'medication':
-                return <MedicationAlert color="primary" />;
+                return <Medication color="primary" />;
             case 'appointment':
                 return <Event color="secondary" />;
             case 'lab':
@@ -86,11 +75,14 @@ export const NotificationManager: React.FC = () => {
         }
     };
 
-    const unreadCount = notifications?.filter(n => !n.read).length || 0;
+    // Safe access with type assertion
+    const safeNotifications = notifications as Notification[];
+    const unreadCount = safeNotifications.filter(n => !n.read).length || 0;
+    const isNotificationsEmpty = !safeNotifications || safeNotifications.length === 0;
 
     return (
         <>
-            <IconButton onClick={handleNotificationClick}>
+            <IconButton onClick={handleNotificationClick} aria-label="Notifications">
                 <Badge badgeContent={unreadCount} color="error">
                     <Notifications />
                 </Badge>
@@ -114,51 +106,63 @@ export const NotificationManager: React.FC = () => {
                 </Box>
                 <Divider />
                 
-                <List>
-                    {notifications?.map((notification: Notification) => (
-                        <ListItem
-                            key={notification.id}
-                            sx={{
-                                bgcolor: notification.read ? 'transparent' : 'action.hover'
-                            }}
-                        >
-                            <ListItemIcon>
-                                {getNotificationIcon(notification.type)}
-                            </ListItemIcon>
-                            <ListItemText
-                                primary={notification.title}
-                                secondary={
-                                    <>
-                                        {notification.message}
-                                        <Typography
-                                            component="span"
-                                            variant="caption"
-                                            display="block"
-                                            color="text.secondary"
-                                        >
-                                            {format(new Date(notification.timestamp), 'PPp')}
-                                        </Typography>
-                                    </>
-                                }
-                            />
-                            {!notification.read && (
-                                <IconButton
-                                    size="small"
-                                    onClick={() => handleNotificationRead(notification.id)}
-                                >
-                                    <Check />
-                                </IconButton>
-                            )}
-                        </ListItem>
-                    ))}
-                </List>
-
-                {notifications?.length === 0 && (
+                {isLoading ? (
                     <Box sx={{ p: 2, textAlign: 'center' }}>
                         <Typography color="textSecondary">
-                            No notifications
+                            Loading notifications...
                         </Typography>
                     </Box>
+                ) : (
+                    <>
+                        <List>
+                            {safeNotifications.map((notification: Notification) => (
+                                <ListItem
+                                    key={notification.id}
+                                    sx={{
+                                        bgcolor: notification.read ? 'transparent' : 'action.hover'
+                                    }}
+                                >
+                                    <ListItemIcon>
+                                        {getNotificationIcon(notification.type)}
+                                    </ListItemIcon>
+                                    <ListItemText
+                                        primary={notification.title}
+                                        secondary={
+                                            <>
+                                                {notification.message}
+                                                <Typography
+                                                    component="span"
+                                                    variant="caption"
+                                                    display="block"
+                                                    color="text.secondary"
+                                                >
+                                                    {notification.timestamp ? 
+                                                        format(new Date(notification.timestamp), 'PPp') : 
+                                                        'Unknown date'}
+                                                </Typography>
+                                            </>
+                                        }
+                                    />
+                                    {!notification.read && (
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => handleNotificationRead(notification.id)}
+                                        >
+                                            <Check />
+                                        </IconButton>
+                                    )}
+                                </ListItem>
+                            ))}
+                        </List>
+
+                        {isNotificationsEmpty && (
+                            <Box sx={{ p: 2, textAlign: 'center' }}>
+                                <Typography color="textSecondary">
+                                    No notifications
+                                </Typography>
+                            </Box>
+                        )}
+                    </>
                 )}
 
                 <Divider />

@@ -96,10 +96,15 @@ export interface AuthState {
   error: string | null;
 }
 
+export interface ApiError {
+  status: number;
+  message: string;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
-  error?: string;
+  error?: ApiError;
   message?: string;
 }
 

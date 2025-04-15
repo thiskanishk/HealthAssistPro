@@ -37,7 +37,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 // import HealthMetricsChart from '../Visualizations/HealthMetricsChart';
 import { format } from 'date-fns';
-// Import the actual types from the project
+// Import the actual types from the project - rename to avoid conflicts with MUI icons
 import { Appointment, Medication as MedicationType } from '../../types';
 
 // Define interfaces for our component data
@@ -86,7 +86,12 @@ interface DiagnosisSummary {
 }
 
 // Mock function for getPatientSummary
-const getPatientSummary = async (id: string) => {
+interface PatientSummaryResponse {
+    patientId: string;
+    name: string;
+}
+
+const getPatientSummary = async (id: string): Promise<PatientSummaryResponse> => {
     return { patientId: id, name: 'Test Patient' };
 };
 
@@ -108,12 +113,18 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ patientId })
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [recentDiagnoses, setRecentDiagnoses] = useState<DiagnosisSummary[]>([]);
 
-    const { data, isLoading } = useQuery({
+    // Query for patient summary data
+    const { isLoading: isSummaryLoading } = useQuery<PatientSummaryResponse>({
         queryKey: ['patientSummary', patientId],
-        queryFn: () => getPatientSummary(patientId)
+        queryFn: () => getPatientSummary(patientId),
+        enabled: !!patientId,
+        // We don't need onSuccess since the mock function doesn't return the data we need
     });
 
     useEffect(() => {
+        // Only run the mock data logic if we're not getting data from the query
+        if (isSummaryLoading) return;
+        
         const fetchDashboardData = async () => {
             try {
                 setLoading(true);

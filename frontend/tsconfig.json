@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es5",
+    "target": "es2015",
     "lib": [
       "dom",
       "dom.iterable",
@@ -32,7 +32,10 @@
     ]
   },
   "include": [
-    "src"
+    "src",
+    "src/types/react-app-env.d.ts",
+    "src/types/react-router-dom.d.ts",
+    "src/types/react.d.ts"
   ],
   "exclude": [
     "node_modules"

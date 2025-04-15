@@ -4,7 +4,7 @@ import medicationAnalyzer, { ParsedDosage } from '../utils/medicationAnalyzer';
 import { MedicationSafetyMonitor, SafetyAlert } from './MedicationSafetyMonitor';
 import { IMedication } from '../models/Medication';
 import logger from '../utils/logger';
-import { IPatient, PatientData } from '../models/Patient';
+import { IPatient, Patient } from '../models/Patient';
 
 // Base error class for prescription recommendation errors
 export class PrescriptionRecommendationError extends Error {
@@ -87,6 +87,23 @@ export interface ComprehensivePrescriptionInput extends PrescriptionInput {
   medicationHistory?: string[]; // previous medications
   treatmentGoals?: string[]; // specific goals for this treatment
   allergies?: string[]; // known allergies
+}
+
+// Add this interface definition
+interface PatientData {
+  age: number;
+  weight: number;
+  height: number;
+  gender: string;
+  allergies: string[];
+  currentMedications: string[];
+  medicalHistory: string[];
+  vitalSigns?: {
+    bloodPressure?: string;
+    heartRate?: number;
+    temperature?: number;
+    respiratoryRate?: number;
+  };
 }
 
 /**

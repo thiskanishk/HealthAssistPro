@@ -4,7 +4,7 @@ import patientRoutes from './patients';
 import diagnosisRoutes from './diagnosis';
 import prescriptionRoutes from './prescriptions';
 import { authenticate } from '../middleware/auth';
-import { apiLimiter } from '../middleware/rateLimit';
+import { apiLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 

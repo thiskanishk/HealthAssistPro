@@ -1,0 +1,157 @@
+import { Request, Response, NextFunction } from 'express';
+import express from 'express';
+import mongoose from 'mongoose';
+import cors, { CorsOptions } from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
+import morgan from 'morgan';
+import logger from './services/logger';
+import config from './config';
+import expressApp from './app';
+import { errorHandler } from './middleware/errorHandler';
+import apiRoutes from './routes/api';
+
+const app = expressApp;
+
+// Middleware
+// Using a basic default CORS setup. 
+// TODO: Define CorsOptions in config/index.ts and use config.cors here.
+// Configure CORS with proper options
+const corsOptions: CorsOptions = {
+    origin: config.server.corsOrigin,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    maxAge: 86400 // 24 hours
+};
+app.use(cors(corsOptions));
+
+// Configure rate limiting
+const limiter = rateLimit({
+    windowMs: config.server.rateLimiting?.windowMs || 15 * 60 * 1000, // 15 minutes
+    max: config.server.rateLimiting?.maxRequests || 100, // Limit each IP to max requests per windowMs
+    message: 'Too many requests from this IP, please try again later',
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false // Disable the `X-RateLimit-*` headers
+});
+app.use('/api', limiter); // Apply rate limiting to API routes 
+app.use(helmet());
+app.use(compression());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan(config.server.env === 'development' ? 'dev' : 'combined', {
+    stream: {
+        write: (message) => logger.info(message.trim()),
+    },
+}));
+
+// Connect to MongoDB
+mongoose.connect(config.database.uri, config.database.options)
+    .then(() => {
+        logger.info('Connected to MongoDB');
+        startServer();
+    })
+    .catch((error) => {
+        logger.error('MongoDB connection error:', { error: error.message, stack: error.stack });
+        process.exit(1);
+    });
+
+// Health check endpoint
+app.get('/health', (req: Request, res: Response) => {
+    res.status(200).json({ status: 'UP' });
+});
+
+// API Routes
+app.use('/api', apiRoutes);
+
+// Centralized Error Handling Middleware
+app.use(errorHandler);
+
+// Start the server
+function startServer() {
+    const server = app.listen(config.server.port, () => {
+        logger.info(`Server is running on port ${config.server.port} in ${config.server.env} mode`);
+    });
+
+    // Handle server errors
+    server.on('error', (error: NodeJS.ErrnoException) => {
+        if (error.syscall !== 'listen') {
+            throw error;
+        }
+
+        const bind = typeof config.server.port === 'string'
+            ? 'Pipe ' + config.server.port
+            : 'Port ' + config.server.port;
+
+        // Handle specific listen errors with friendly messages
+        switch (error.code) {
+            case 'EACCES':
+                logger.error(`${bind} requires elevated privileges`);
+                process.exit(1);
+                break;
+            case 'EADDRINUSE':
+                logger.error(`${bind} is already in use`);
+                process.exit(1);
+                break;
+            default:
+                logger.error('Server startup error:', { code: error.code, message: error.message });
+                throw error;
+        }
+    });
+
+    const gracefulShutdown = (signal: string) => {
+        logger.info(`Received ${signal}, shutting down gracefully...`);
+        server.close(() => {
+            logger.info('HTTP server closed.');
+            mongoose.connection.close(false).then(() => {
+                 logger.info('MongoDB connection closed.');
+                 process.exit(0);
+            }).catch(err => {
+                 logger.error('Error closing MongoDB connection:', err);
+                 process.exit(1);
+            });
+        });
+
+        // Force shutdown after timeout
+        setTimeout(() => {
+            logger.error('Could not close connections in time, forcing shutdown.');
+            process.exit(1);
+        }, 10000);
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+}
+
+// Global Error Handlers
+process.on('uncaughtException', (error: Error) => {
+    logger.error('Uncaught Exception:', { message: error.message, stack: error.stack });
+    // Attempt to close logger gracefully before exiting
+    // Check if logger has a close method and it's a function
+    if (logger && typeof (logger as any).close === 'function') {
+        (logger as any).close(() => {
+            process.exit(1);
+        });
+        // Set a timeout in case logger.close hangs
+        setTimeout(() => process.exit(1), 3000);
+    } else {
+        process.exit(1);
+    }
+});
+
+process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
+    const errorDetails = (reason instanceof Error) 
+        ? { message: reason.message, stack: reason.stack } 
+        : { reason };        
+    logger.error('Unhandled Rejection:', { ...errorDetails, promise });
+
+    // Attempt to close logger gracefully before exiting
+    if (logger && typeof (logger as any).close === 'function') {
+        (logger as any).close(() => {
+            process.exit(1);
+        });
+        setTimeout(() => process.exit(1), 3000);
+    } else {
+        process.exit(1);
+    }
+}); 

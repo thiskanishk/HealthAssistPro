@@ -31,4 +31,6 @@ router.put('/:patientId', async (req, res) => {
   } catch (error) {
     next(error);
   }
-}); 
+});
+
+export default router;

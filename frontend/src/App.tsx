@@ -1,64 +1,119 @@
-import * as React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider } from './theme/ThemeProvider';
-import { LocalizationProvider } from '@mui/x-date-pickers';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import ErrorBoundary from './components/common/ErrorBoundary';
+import React, { lazy, Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { CssBaseline, ThemeProvider, createTheme, Box, CircularProgress } from '@mui/material';
+import { useSelector } from 'react-redux';
+import { AuthProvider } from './contexts/AuthContext';
+import DashboardLayout from './components/layout/DashboardLayout';
+import { useAuth } from './contexts/AuthContext';
 
-// Auth Pages
-import Login from './pages/auth/Login';
-import Register from './pages/auth/Register';
-import ForgotPassword from './pages/auth/ForgotPassword';
+// Loading component
+const Loading = () => (
+  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+    <CircularProgress />
+  </Box>
+);
 
-// Protected Pages
-import Dashboard from './pages/dashboard/Dashboard';
-import PatientList from './pages/patients/PatientList';
-import PatientDetails from './pages/patients/PatientDetails';
-import NewDiagnosis from './pages/diagnosis/NewDiagnosis';
-import DiagnosisHistory from './pages/diagnosis/DiagnosisHistory';
-import Profile from './pages/profile/Profile';
-import Settings from './pages/settings/Settings';
+// Lazy-loaded components
+const Login = lazy(() => import('./pages/auth/Login'));
+const Register = lazy(() => import('./pages/auth/Register'));
+const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'));
+const PatientDashboard = lazy(() => import('./components/Dashboard/PatientDashboard'));
+const DoctorDashboard = lazy(() => import('./pages/DoctorDashboard'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const NurseDashboard = lazy(() => import('./pages/NurseDashboard'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
-// Layout Components
-import ProtectedRoute from './components/layout/ProtectedRoute';
-import MainLayout from './components/layout/MainLayout';
+// Protected Route wrapper
+const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
+};
 
+// Public Route wrapper
+const PublicRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? <Navigate to="/dashboard" replace /> : children;
+};
+
+// Role-based Dashboard component
+const DashboardRouter: React.FC = () => {
+  const { user } = useAuth();
+
+  switch (user?.role) {
+    case 'patient':
+      return <PatientDashboard patientId={user.id} />;
+    case 'doctor':
+      return <DoctorDashboard />;
+    case 'admin':
+      return <AdminDashboard />;
+    case 'nurse':
+      return <NurseDashboard />;
+    default:
+      return <Navigate to="/login" replace />;
+  }
+};
+
+// App component
 const App: React.FC = () => {
+  const darkMode = useSelector((state: any) => state.ui?.darkMode) || false;
+
+  const theme = createTheme({
+    palette: {
+      mode: darkMode ? 'dark' : 'light',
+      primary: {
+        main: '#2196f3',
+      },
+      secondary: {
+        main: '#f50057',
+      },
+    },
+    typography: {
+      fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+    },
+    components: {
+      MuiButton: {
+        styleOverrides: {
+          root: {
+            textTransform: 'none',
+            borderRadius: 8,
+          },
+        },
+      },
+    },
+  });
+
   return (
-    <ErrorBoundary>
-      <ThemeProvider>
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/auth">
-              <Route path="login" element={<Login />} />
-              <Route path="register" element={<Register />} />
-              <Route path="forgot-password" element={<ForgotPassword />} />
-            </Route>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Router>
+        <AuthProvider>
+          <Suspense fallback={<Loading />}>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+              <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+              <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+              <Route path="/reset-password/:token" element={<PublicRoute><ResetPassword /></PublicRoute>} />
 
-            {/* Protected Routes */}
-            <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-              <Route index element={<Navigate to="/dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="patients">
-                <Route index element={<PatientList />} />
-                <Route path=":patientId" element={<PatientDetails />} />
-              </Route>
-              <Route path="diagnosis">
-                <Route path="new" element={<NewDiagnosis />} />
-                <Route path="history" element={<DiagnosisHistory />} />
-              </Route>
-              <Route path="profile" element={<Profile />} />
-              <Route path="settings" element={<Settings />} />
-            </Route>
+              {/* Protected Routes */}
+              <Route path="/dashboard" element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <DashboardRouter />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
 
-            {/* Catch-all Route */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </LocalizationProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+              {/* Default Routes */}
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </AuthProvider>
+      </Router>
+    </ThemeProvider>
   );
 };
 
-export default App; 
+export default App;

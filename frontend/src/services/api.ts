@@ -69,6 +69,23 @@ class ApiService {
     return response.data;
   }
 
+  // Add validateToken method for auth context
+  async validateToken(token: string): Promise<ApiResponse<{ user: User }>> {
+    try {
+      const response = await this.api.get('/auth/validate', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Invalid token',
+      };
+    }
+  }
+
   // Patient endpoints
   async getPatients(page = 1, limit = 10): Promise<PaginatedResponse<Patient>> {
     const response = await this.api.get(`/patients?page=${page}&limit=${limit}`);
