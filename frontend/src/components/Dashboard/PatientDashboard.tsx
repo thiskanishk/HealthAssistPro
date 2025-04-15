@@ -37,6 +37,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 // import HealthMetricsChart from '../Visualizations/HealthMetricsChart';
 import { format } from 'date-fns';
+// Import the actual types from the project
+import { Appointment, Medication as MedicationType } from '../../types';
 
 // Define interfaces for our component data
 interface PatientDashboardProps {

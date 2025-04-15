@@ -29,8 +29,33 @@ import {
   HelpOutline
 } from '@mui/icons-material';
 
+// Define proper types for the settings
+interface AppearanceSettings {
+  darkMode: boolean;
+  fontScale: string;
+  highContrast: boolean;
+}
+
+interface NotificationSettings {
+  emailAlerts: boolean;
+  smsAlerts: boolean;
+  browserNotifications: boolean;
+}
+
+interface PrivacySettings {
+  sharingEnabled: boolean;
+  analyticsConsent: boolean;
+}
+
+interface AppSettings {
+  appearance: AppearanceSettings;
+  notifications: NotificationSettings;
+  language: string;
+  privacy: PrivacySettings;
+}
+
 const Settings: React.FC = () => {
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<AppSettings>({
     appearance: {
       darkMode: false,
       fontScale: '100%',
@@ -50,15 +75,39 @@ const Settings: React.FC = () => {
 
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const handleSwitchChange = (section: string, name: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSettings({
-      ...settings,
-      [section]: {
-        ...settings[section as keyof typeof settings],
-        [name]: event.target.checked
-      }
-    });
-  };
+  // Define separate type-safe handlers for each settings section
+  const handleAppearanceChange = (name: keyof AppearanceSettings) => 
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setSettings({
+        ...settings,
+        appearance: {
+          ...settings.appearance,
+          [name]: event.target.checked
+        }
+      });
+    };
+
+  const handleNotificationsChange = (name: keyof NotificationSettings) => 
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setSettings({
+        ...settings,
+        notifications: {
+          ...settings.notifications,
+          [name]: event.target.checked
+        }
+      });
+    };
+
+  const handlePrivacyChange = (name: keyof PrivacySettings) => 
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setSettings({
+        ...settings,
+        privacy: {
+          ...settings.privacy,
+          [name]: event.target.checked
+        }
+      });
+    };
 
   const handleLanguageChange = (event: SelectChangeEvent) => {
     setSettings({
@@ -187,7 +236,7 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.appearance.darkMode}
-                    onChange={handleSwitchChange('appearance', 'darkMode')}
+                    onChange={handleAppearanceChange('darkMode')}
                   />
                 }
                 label="Dark Mode"
@@ -200,7 +249,7 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.appearance.highContrast}
-                    onChange={handleSwitchChange('appearance', 'highContrast')}
+                    onChange={handleAppearanceChange('highContrast')}
                   />
                 }
                 label="High Contrast"
@@ -220,7 +269,7 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.notifications.emailAlerts}
-                    onChange={handleSwitchChange('notifications', 'emailAlerts')}
+                    onChange={handleNotificationsChange('emailAlerts')}
                   />
                 }
                 label="Email Notifications"
@@ -230,7 +279,7 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.notifications.smsAlerts}
-                    onChange={handleSwitchChange('notifications', 'smsAlerts')}
+                    onChange={handleNotificationsChange('smsAlerts')}
                   />
                 }
                 label="SMS Alerts"
@@ -240,7 +289,7 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.notifications.browserNotifications}
-                    onChange={handleSwitchChange('notifications', 'browserNotifications')}
+                    onChange={handleNotificationsChange('browserNotifications')}
                   />
                 }
                 label="Browser Notifications"
@@ -281,7 +330,7 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.privacy.sharingEnabled}
-                    onChange={handleSwitchChange('privacy', 'sharingEnabled')}
+                    onChange={handlePrivacyChange('sharingEnabled')}
                   />
                 }
                 label="Data Sharing"
@@ -294,7 +343,7 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.privacy.analyticsConsent}
-                    onChange={handleSwitchChange('privacy', 'analyticsConsent')}
+                    onChange={handlePrivacyChange('analyticsConsent')}
                   />
                 }
                 label="Analytics Consent"

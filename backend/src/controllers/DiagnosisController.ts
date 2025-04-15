@@ -3,22 +3,12 @@ import { aiService } from '../services/ai/AIServiceManager';
 import { SymptomAnalyzer } from '../services/ai/SymptomAnalyzer';
 import { TreatmentRecommender } from '../services/ai/TreatmentRecommender';
 import { DocumentationAssistant } from '../services/ai/DocumentationAssistant';
-import { Patient } from '../models/Patient';
+import { Patient, PatientData } from '../models/Patient';
 import { DiagnosisService } from '../services/DiagnosisService';
-import { DiagnosisModel } from '../models/Diagnosis';
+import { DiagnosisModel, IDiagnosis } from '../models/Diagnosis';
 import mongoose from 'mongoose';
 
 // Define interfaces for different data structures
-interface PatientData {
-  age: number;
-  gender: string;
-  symptoms: string[];
-  medicalHistory: any[];
-  medications: any[];
-  allergies: any[];
-  vitals: any;
-}
-
 interface DiagnosisResult {
   diagnoses: Array<{ condition: string; confidence: number }>;
   recommendedTests: string[];
