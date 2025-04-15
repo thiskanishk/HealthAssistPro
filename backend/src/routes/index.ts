@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AppError } from '../errors/AppError';
 import { ErrorCode, HttpStatus } from '../types/api.types';
+import medicationUtilsRoutes from './medicationUtils';
 
 const router = Router();
 
@@ -20,6 +21,9 @@ router.get('/health', (req, res) => {
 // Example:
 // import authRoutes from './auth.routes';
 // router.use('/auth', authRoutes);
+
+// Register medication utility routes
+router.use('/medication-utils', medicationUtilsRoutes);
 
 // 404 handler for unmatched routes
 router.use((req, res, next) => {

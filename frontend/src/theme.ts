@@ -1,6 +1,28 @@
 import { createTheme } from '@mui/material/styles';
 
-export const theme = createTheme({
+// Define custom palette types
+declare module '@mui/material/styles' {
+  interface Palette {
+    healthcare: {
+      main: string;
+      light: string;
+      dark: string;
+      contrastText: string;
+    };
+    neutral: Palette['primary'];
+  }
+  interface PaletteOptions {
+    healthcare?: {
+      main: string;
+      light: string;
+      dark: string;
+      contrastText: string;
+    };
+    neutral?: PaletteOptions['primary'];
+  }
+}
+
+const theme = createTheme({
   palette: {
     primary: {
       main: '#2196f3',
@@ -11,6 +33,18 @@ export const theme = createTheme({
       main: '#f50057',
       light: '#ff4081',
       dark: '#c51162',
+    },
+    healthcare: {
+      main: '#00acc1',
+      light: '#4dd0e1',
+      dark: '#007c91',
+      contrastText: '#fff',
+    },
+    neutral: {
+      main: '#64748B',
+      light: '#94A3B8',
+      dark: '#475569',
+      contrastText: '#fff',
     },
     background: {
       default: '#f5f5f5',
@@ -80,4 +114,6 @@ export const theme = createTheme({
       },
     },
   },
-}); 
+});
+
+export default theme; 

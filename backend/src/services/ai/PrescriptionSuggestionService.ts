@@ -3,6 +3,7 @@ import { aiConfig } from '../../config/ai.config';
 import { DrugInteractionService } from './DrugInteractionService';
 import { aiService } from './AIServiceManager';
 import logger from '../../utils/logger';
+import { medicationRepository, Medication, TreatmentGuideline } from '../../repositories/MedicationRepository';
 
 // Define specific error types for better error handling
 export class PrescriptionValidationError extends Error {
@@ -99,6 +100,7 @@ export interface PrescriptionSuggestion {
 export class PrescriptionSuggestionService extends BaseAIService {
   private drugInteractionService: DrugInteractionService;
   private readonly MAX_RETRIES = 2;
+  private cachedGuidelines: Map<string, TreatmentGuideline> = new Map();
 
   constructor() {
     super(aiConfig.openai.prescriptionModel);
@@ -118,11 +120,14 @@ export class PrescriptionSuggestionService extends BaseAIService {
     try {
       // Validate input
       this.validatePrescriptionInput(input);
+      
+      // Ensure medication repository is initialized
+      await this.ensureMedicationRepositoryInitialized();
 
       // Get AI-based prescription suggestions
       const suggestions = await this.getAISuggestions(input);
 
-      // Check drug interactions
+      // Check drug interactions using the centralized repository
       const enhancedSuggestions = await this.checkInteractions(
         suggestions,
         input.patientData.currentMedications
@@ -147,6 +152,19 @@ export class PrescriptionSuggestionService extends BaseAIService {
       }
       // Convert unknown errors to specific types
       return this.handleError(error as Error, 'Prescription Suggestion');
+    }
+  }
+
+  /**
+   * Ensure the medication repository is initialized before using it
+   */
+  private async ensureMedicationRepositoryInitialized(): Promise<void> {
+    try {
+      // This will initialize the repository if it hasn't been already
+      await medicationRepository.initialize();
+    } catch (error) {
+      logger.error('Failed to initialize medication repository', error);
+      throw new Error('Could not access medication data');
     }
   }
 
@@ -566,104 +584,340 @@ export class PrescriptionSuggestionService extends BaseAIService {
   }
 
   /**
-   * Check for interactions between suggested medications and current medications
+   * Check for drug interactions between suggested medications and current medications
+   * Uses the medication repository for comprehensive interaction checking
    */
   private async checkInteractions(
     suggestions: PrescriptionSuggestion[],
     currentMedications: string[]
   ): Promise<PrescriptionSuggestion[]> {
-    try {
-      return await Promise.all(
-        suggestions.map(async (suggestion) => {
-          try {
-            const interactions = await this.drugInteractionService.checkInteractions(
-              suggestion.medication,
-              currentMedications
-            );
-
-            // Flag high-risk suggestions for review
-            const hasHighRiskInteraction = interactions.some(
-              interaction => interaction.severity === InteractionSeverity.HIGH
-            );
-
-            return {
-              ...suggestion,
-              interactionRisks: interactions,
-              status: hasHighRiskInteraction ? 
-                PrescriptionStatus.REQUIRES_REVIEW : 
-                suggestion.status || PrescriptionStatus.PENDING
-            };
-          } catch (error) {
-            logger.error(`Error checking interactions for ${suggestion.medication}`, error);
-            return suggestion;
+    logger.info('Checking drug interactions for prescription suggestions');
+    
+    const enhancedSuggestions: PrescriptionSuggestion[] = [];
+    
+    for (const suggestion of suggestions) {
+      try {
+        // First check interactions with existing medications using the repository
+        const repoInteractions = await medicationRepository.checkInteractions(
+          suggestion.medication,
+          currentMedications
+        );
+        
+        // Then check interactions with DrugInteractionService as a backup/supplement
+        const serviceInteractions = await this.drugInteractionService.checkInteractions(
+          suggestion.medication,
+          currentMedications
+        );
+        
+        // Combine and deduplicate interactions
+        const allInteractionRisks: DrugInteractionRisk[] = [];
+        
+        // Process repository interactions
+        for (const interaction of repoInteractions) {
+          allInteractionRisks.push({
+            severity: this.mapSeverity(interaction.severity),
+            description: interaction.description,
+            medications: [interaction.medication],
+            evidenceLevel: interaction.evidenceLevel as 'strong' | 'moderate' | 'weak',
+          });
+        }
+        
+        // Process service interactions
+        for (const risk of serviceInteractions) {
+          // Check if we already have this interaction from the repository
+          const existingIndex = allInteractionRisks.findIndex(
+            ir => ir.medications.includes(risk.medications[0]) && ir.severity === risk.severity
+          );
+          
+          if (existingIndex >= 0) {
+            // Merge descriptions if they're different
+            if (!allInteractionRisks[existingIndex].description.includes(risk.description)) {
+              allInteractionRisks[existingIndex].description += '; ' + risk.description;
+            }
+          } else {
+            allInteractionRisks.push(risk);
           }
-        })
-      );
-    } catch (error) {
-      logger.error('Error in interaction checking process', error);
-      throw new DrugInteractionError(`Failed to check drug interactions: ${(error as Error).message}`);
+        }
+        
+        // Update the suggestion with interaction risks
+        const updatedSuggestion: PrescriptionSuggestion = {
+          ...suggestion,
+          interactionRisks: allInteractionRisks
+        };
+        
+        // Flag if there are any high severity interactions
+        if (allInteractionRisks.some(risk => risk.severity === InteractionSeverity.HIGH)) {
+          updatedSuggestion.status = PrescriptionStatus.REQUIRES_REVIEW;
+          updatedSuggestion.warnings = [
+            ...updatedSuggestion.warnings,
+            'High-risk drug interaction detected - medical review required'
+          ];
+        }
+        
+        enhancedSuggestions.push(updatedSuggestion);
+      } catch (error) {
+        logger.error(`Error checking interactions for ${suggestion.medication}`, error);
+        // Add a warning to the suggestion
+        suggestion.warnings.push('Could not fully verify drug interactions - use with caution');
+        suggestion.status = PrescriptionStatus.REQUIRES_REVIEW;
+        enhancedSuggestions.push(suggestion);
+      }
+    }
+    
+    return enhancedSuggestions;
+  }
+
+  /**
+   * Map interaction severity from repository format to service format
+   */
+  private mapSeverity(severity: string): InteractionSeverity {
+    switch (severity.toLowerCase()) {
+      case 'high':
+        return InteractionSeverity.HIGH;
+      case 'moderate':
+        return InteractionSeverity.MEDIUM;
+      case 'low':
+        return InteractionSeverity.LOW;
+      default:
+        return InteractionSeverity.MEDIUM;
     }
   }
 
   /**
-   * Validate suggestions against medical guidelines
-   * This is a placeholder for future implementation
+   * Validate suggestions against medical guidelines using the medication repository
    */
   private async validateWithGuidelines(
     suggestions: PrescriptionSuggestion[],
     input: PrescriptionInput
   ): Promise<PrescriptionSuggestion[]> {
-    // Implement validation against medical guidelines
-    // For now, this is a placeholder for future implementation
+    logger.info('Validating prescription suggestions against medical guidelines');
     
-    // Flag potentially inappropriate medications for elderly patients
-    if (input.patientData.age > 65) {
-      return suggestions.map(suggestion => {
-        const potentiallyInappropriate = this.checkBeersCriteria(suggestion.medication);
-        if (potentiallyInappropriate) {
-          return {
-            ...suggestion,
-            warnings: [...suggestion.warnings, `Potentially inappropriate for elderly patients: ${potentiallyInappropriate}`],
-            status: PrescriptionStatus.REQUIRES_REVIEW
-          };
+    const validatedSuggestions: PrescriptionSuggestion[] = [];
+    
+    // Get guidelines for the diagnosis if available
+    const guideline = await this.getGuidelinesForDiagnosis(input.diagnosis);
+    
+    for (const suggestion of suggestions) {
+      const validatedSuggestion = { ...suggestion };
+      const validationWarnings: string[] = [];
+      
+      // Check pregnancy status if applicable
+      if (input.patientData.gender.toLowerCase() === 'female' && input.patientData.age >= 12 && input.patientData.age <= 50) {
+        const pregnancyCategory = await medicationRepository.checkPregnancyCategory(suggestion.medication);
+        if (pregnancyCategory && ['D', 'X'].includes(pregnancyCategory)) {
+          validationWarnings.push(`Pregnancy category ${pregnancyCategory} - potentially harmful to fetus`);
+          validatedSuggestion.status = PrescriptionStatus.REQUIRES_REVIEW;
         }
-        return suggestion;
-      });
+      }
+      
+      // Check Beers criteria for elderly patients
+      if (input.patientData.age > 65) {
+        const beersCriteria = await medicationRepository.checkBeersCriteria(suggestion.medication);
+        if (beersCriteria && beersCriteria.isInappropriate) {
+          validationWarnings.push(`Potentially inappropriate for elderly patients: ${beersCriteria.reason || 'See Beers Criteria'}`);
+          if (beersCriteria.recommendation) {
+            validationWarnings.push(`Recommendation: ${beersCriteria.recommendation}`);
+          }
+          validatedSuggestion.status = PrescriptionStatus.REQUIRES_REVIEW;
+        }
+      }
+      
+      // Check pediatric safety for children
+      if (input.patientData.age < 18) {
+        const medication = await medicationRepository.getMedicationByName(suggestion.medication);
+        if (medication?.pediatricUse) {
+          if (!medication.pediatricUse.isSafe) {
+            validationWarnings.push(`Not recommended for pediatric use`);
+            validatedSuggestion.status = PrescriptionStatus.REQUIRES_REVIEW;
+          } else if (medication.pediatricUse.minimumAge && input.patientData.age < medication.pediatricUse.minimumAge) {
+            validationWarnings.push(`Not recommended for children under ${medication.pediatricUse.minimumAge} years`);
+            validatedSuggestion.status = PrescriptionStatus.REQUIRES_REVIEW;
+          }
+          
+          if (medication.pediatricUse.warnings && medication.pediatricUse.warnings.length > 0) {
+            validationWarnings.push(...medication.pediatricUse.warnings);
+          }
+          
+          if (medication.pediatricUse.dosageAdjustment) {
+            validationWarnings.push(`Pediatric dosage adjustment required: ${medication.pediatricUse.dosageAdjustment}`);
+          }
+        }
+      }
+      
+      // Check if medication is a first-line treatment for the condition
+      if (guideline) {
+        const isFirstLine = guideline.firstLineOptions.some(option => 
+          option.medications.some(med => med.toLowerCase() === suggestion.medication.toLowerCase())
+        );
+        
+        const isSecondLine = guideline.secondLineOptions.some(option => 
+          option.medications.some(med => med.toLowerCase() === suggestion.medication.toLowerCase())
+        );
+        
+        if (!isFirstLine && !isSecondLine) {
+          validationWarnings.push(`Not a standard treatment option for ${input.diagnosis} according to guidelines`);
+          validatedSuggestion.status = PrescriptionStatus.REQUIRES_REVIEW;
+        } else if (isSecondLine && !isFirstLine) {
+          validationWarnings.push(`Second-line treatment option for ${input.diagnosis}`);
+        }
+        
+        // Check for special population recommendations
+        const populationTypes: Array<'pediatric' | 'geriatric' | 'pregnant' | 'renalImpairment' | 'hepaticImpairment'> = [];
+        
+        // Add applicable populations
+        if (input.patientData.age < 18) populationTypes.push('pediatric');
+        if (input.patientData.age > 65) populationTypes.push('geriatric');
+        
+        for (const populationType of populationTypes) {
+          const specialPopulation = guideline.specialPopulations.find(pop => pop.population === populationType);
+          if (specialPopulation) {
+            // Check if this medication is in the special population recommendations
+            const isMedicationRecommended = specialPopulation.medications.some(
+              med => med.toLowerCase().includes(suggestion.medication.toLowerCase()) ||
+                     suggestion.medication.toLowerCase().includes(med.toLowerCase())
+            );
+            
+            if (!isMedicationRecommended) {
+              validationWarnings.push(`Not recommended for ${populationType} patients with ${input.diagnosis}`);
+              validationWarnings.push(...specialPopulation.recommendations);
+              validatedSuggestion.status = PrescriptionStatus.REQUIRES_REVIEW;
+            }
+          }
+        }
+      }
+      
+      // Check dosage guidelines
+      const dosageGuidelines = await medicationRepository.getDosageGuidelines(
+        suggestion.medication,
+        input.patientData.age,
+        input.patientData.weight,
+        input.diagnosis
+      );
+      
+      if (dosageGuidelines && dosageGuidelines.length > 0) {
+        // Find the best match from available guidelines
+        let matched = false;
+        
+        for (const guideline of dosageGuidelines) {
+          // Extract numeric dosage for comparison if possible
+          const suggestedDosage = this.extractNumericDosage(suggestion.dosage);
+          const guidelineDosage = this.extractNumericDosage(guideline.dosage);
+          
+          if (suggestedDosage && guidelineDosage) {
+            // Check if dosage is within a reasonable range (±20%)
+            const minAcceptable = guidelineDosage * 0.8;
+            const maxAcceptable = guidelineDosage * 1.2;
+            
+            if (suggestedDosage < minAcceptable || suggestedDosage > maxAcceptable) {
+              validationWarnings.push(`Dosage differs from guideline recommendation (${guideline.dosage})`);
+              matched = true;
+              break;
+            }
+          }
+          
+          // Check max daily dose if available
+          if (guideline.maxDailyDose) {
+            const maxDaily = this.extractNumericDosage(guideline.maxDailyDose);
+            const suggestedDaily = this.calculateDailyDosage(suggestion.dosage, suggestion.frequency);
+            
+            if (maxDaily && suggestedDaily && suggestedDaily > maxDaily) {
+              validationWarnings.push(`Exceeds maximum recommended daily dose of ${guideline.maxDailyDose}`);
+              validatedSuggestion.status = PrescriptionStatus.REQUIRES_REVIEW;
+            }
+          }
+          
+          // Add any notes from the guideline
+          if (guideline.notes) {
+            validationWarnings.push(`Note: ${guideline.notes}`);
+          }
+          
+          matched = true;
+        }
+        
+        if (!matched) {
+          validationWarnings.push('Could not verify dosage against guidelines - use clinical judgment');
+        }
+      }
+      
+      // Add all validation warnings to the suggestion
+      validatedSuggestion.warnings = [...validatedSuggestion.warnings, ...validationWarnings];
+      validatedSuggestions.push(validatedSuggestion);
     }
     
-    return suggestions;
+    return validatedSuggestions;
   }
 
   /**
-   * Check if medication is potentially inappropriate for elderly patients
-   * according to the Beers Criteria (simplified implementation)
+   * Get treatment guidelines for a diagnosis
    */
-  private checkBeersCriteria(medication: string): string | null {
-    // Simplified implementation of Beers Criteria checks
-    const beersCriteriaMeds: Record<string, string> = {
-      'diphenhydramine': 'Strong anticholinergic effects, risk of confusion',
-      'amitriptyline': 'Strong anticholinergic effects, sedation',
-      'diazepam': 'Increased sensitivity to benzodiazepines, risk of cognitive impairment',
-      'ibuprofen': 'Increased risk of GI bleeding in long-term use',
-      'naproxen': 'Increased risk of GI bleeding in long-term use',
-      'glyburide': 'Higher risk of severe hypoglycemia'
-    };
-    
-    const normalizedMed = medication.toLowerCase().trim();
-    
-    // Check for exact matches
-    if (beersCriteriaMeds[normalizedMed]) {
-      return beersCriteriaMeds[normalizedMed];
+  private async getGuidelinesForDiagnosis(diagnosis: string): Promise<TreatmentGuideline | null> {
+    // Check cache first
+    if (this.cachedGuidelines.has(diagnosis)) {
+      return this.cachedGuidelines.get(diagnosis) || null;
     }
     
-    // Check for partial matches
-    for (const [med, reason] of Object.entries(beersCriteriaMeds)) {
-      if (normalizedMed.includes(med)) {
-        return reason;
+    // Try to get from repository
+    const guideline = await medicationRepository.getGuidelinesForCondition(diagnosis);
+    
+    // Cache the result (even if null to avoid repeated lookups)
+    this.cachedGuidelines.set(diagnosis, guideline as TreatmentGuideline);
+    
+    return guideline;
+  }
+
+  /**
+   * Extract numeric dosage from a dosage string
+   * e.g. "10 mg" -> 10, "10-20 mg" -> 15 (average)
+   */
+  private extractNumericDosage(dosageString: string): number | null {
+    try {
+      // Handle range format (e.g., "10-20 mg")
+      if (dosageString.includes('-')) {
+        const [min, max] = dosageString.split('-');
+        const minNum = parseFloat(min.replace(/[^\d.]/g, ''));
+        const maxNum = parseFloat(max.replace(/[^\d.]/g, ''));
+        return (minNum + maxNum) / 2; // Return average
       }
+      
+      // Handle simple format (e.g., "10 mg")
+      const match = dosageString.match(/(\d+(\.\d+)?)/);
+      if (match) {
+        return parseFloat(match[0]);
+      }
+      
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Calculate approximate daily dosage based on individual dose and frequency
+   */
+  private calculateDailyDosage(dosage: string, frequency: string): number | null {
+    const numericDosage = this.extractNumericDosage(dosage);
+    if (!numericDosage) return null;
+    
+    let timesPerDay = 1;
+    const lowerFreq = frequency.toLowerCase();
+    
+    if (lowerFreq.includes('twice') || lowerFreq.includes('two times') || lowerFreq.includes('bid') || lowerFreq.includes('b.i.d')) {
+      timesPerDay = 2;
+    } else if (lowerFreq.includes('three times') || lowerFreq.includes('tid') || lowerFreq.includes('t.i.d')) {
+      timesPerDay = 3;
+    } else if (lowerFreq.includes('four times') || lowerFreq.includes('qid') || lowerFreq.includes('q.i.d')) {
+      timesPerDay = 4;
+    } else if (lowerFreq.includes('every 12 hours')) {
+      timesPerDay = 2;
+    } else if (lowerFreq.includes('every 8 hours')) {
+      timesPerDay = 3;
+    } else if (lowerFreq.includes('every 6 hours')) {
+      timesPerDay = 4;
+    } else if (lowerFreq.includes('every 4 hours')) {
+      timesPerDay = 6;
     }
     
-    return null;
+    return numericDosage * timesPerDay;
   }
 
   /**
@@ -699,4 +953,25 @@ export class PrescriptionSuggestionService extends BaseAIService {
       { modelName: this.config.modelName }
     );
   }
-} 
+
+  /**
+   * Handle error by converting to an appropriate error type
+   */
+  protected handleError(error: Error, context: string): never {
+    const errorMessage = `Error in ${context}: ${error.message}`;
+    logger.error(errorMessage, { error });
+    
+    if (error.message.includes('validation') || error.message.includes('required')) {
+      throw new PrescriptionValidationError(errorMessage);
+    } else if (error.message.includes('parsing') || error.message.includes('response')) {
+      throw new PrescriptionParsingError(errorMessage);
+    } else if (error.message.includes('interaction')) {
+      throw new DrugInteractionError(errorMessage);
+    }
+    
+    throw new Error(errorMessage);
+  }
+}
+
+// Export singleton instance
+export const prescriptionService = new PrescriptionSuggestionService(); 
