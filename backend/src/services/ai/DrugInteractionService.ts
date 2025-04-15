@@ -1,17 +1,36 @@
 import { aiService } from './AIServiceManager';
 import logger from '../../utils/logger';
+import { InteractionSeverity, DrugInteractionRisk } from './PrescriptionSuggestionService';
 
 /**
  * Service for checking drug interactions between medications
+ * Singleton implementation to ensure the interaction database is initialized only once
  */
 export class DrugInteractionService {
-    private interactionDatabase: Map<string, string[]>;
+    private static instance: DrugInteractionService;
+    private interactionDatabase: Map<string, Array<{drug: string, severity: InteractionSeverity, description: string}>>;
+    private initialized: boolean = false;
+    
+    /**
+     * Get the singleton instance of DrugInteractionService
+     */
+    public static getInstance(): DrugInteractionService {
+        if (!DrugInteractionService.instance) {
+            DrugInteractionService.instance = new DrugInteractionService();
+        }
+        return DrugInteractionService.instance;
+    }
     
     constructor() {
-        // Initialize a simple interaction database
-        // In a real application, this would connect to a comprehensive drug interaction API
+        // Use singleton pattern to prevent multiple initializations
+        if (DrugInteractionService.instance) {
+            return DrugInteractionService.instance;
+        }
+        
+        // Initialize a comprehensive interaction database
         this.interactionDatabase = new Map();
         this.initializeInteractionDatabase();
+        DrugInteractionService.instance = this;
     }
     
     /**
@@ -23,36 +42,49 @@ export class DrugInteractionService {
     async checkInteractions(
         medication: string,
         currentMedications: string[]
-    ): Promise<Array<{
-        severity: 'high' | 'medium' | 'low';
-        description: string;
-        medications: string[];
-    }>> {
+    ): Promise<DrugInteractionRisk[]> {
         try {
+            // Ensure the database is initialized
+            if (!this.initialized) {
+                await this.initializeInteractionDatabase();
+            }
+            
             logger.info(`Checking interactions for ${medication} with ${currentMedications.length} current medications`);
             
-            const results: Array<{
-                severity: 'high' | 'medium' | 'low';
-                description: string;
-                medications: string[];
-            }> = [];
+            const results: DrugInteractionRisk[] = [];
             
-            // For demonstration, check our simple database first
+            // Normalize the medication name
+            const normalizedMed = this.normalizeMedicationName(medication);
+            
+            // First check known interactions from our database
             for (const currentMed of currentMedications) {
-                const knownInteraction = this.checkKnownInteraction(medication, currentMed);
+                const normalizedCurrentMed = this.normalizeMedicationName(currentMed);
+                const knownInteraction = this.checkKnownInteraction(normalizedMed, normalizedCurrentMed);
+                
                 if (knownInteraction) {
                     results.push(knownInteraction);
                 }
             }
             
-            // If we have results from our database, return them
-            if (results.length > 0) {
-                return results;
+            // If we have fewer than 3 results from our database, use AI to check additional interactions
+            if (results.length < 3 && currentMedications.length > 0) {
+                const aiInteractions = await this.generateAIInteractionCheck(medication, currentMedications);
+                
+                // Deduplicate interactions
+                for (const aiInteraction of aiInteractions) {
+                    // Check if this interaction is already in our results
+                    const isDuplicate = results.some(result => 
+                        result.medications.includes(aiInteraction.medications[0]) && 
+                        result.medications.includes(aiInteraction.medications[1])
+                    );
+                    
+                    if (!isDuplicate) {
+                        results.push(aiInteraction);
+                    }
+                }
             }
             
-            // Otherwise, use AI to generate potential interactions
-            // This would be supplementary to a real drug interaction database in production
-            return this.generateAIInteractionCheck(medication, currentMedications);
+            return results;
         } catch (error) {
             logger.error('Error checking drug interactions:', error);
             return [];
@@ -60,17 +92,209 @@ export class DrugInteractionService {
     }
     
     /**
-     * Initialize a simple interaction database with common drugs and their interactions
-     * In a real system, this would be loaded from a comprehensive medical database
+     * Initialize a comprehensive interaction database with common drugs and their interactions
+     * This uses a more structured format with severity and descriptions
      */
-    private initializeInteractionDatabase() {
-        // Common drug interactions (simplified for demonstration)
-        this.interactionDatabase.set('warfarin', ['aspirin', 'ibuprofen', 'naproxen', 'clopidogrel']);
-        this.interactionDatabase.set('simvastatin', ['clarithromycin', 'itraconazole', 'cyclosporine']);
-        this.interactionDatabase.set('lisinopril', ['spironolactone', 'potassium supplements']);
-        this.interactionDatabase.set('digoxin', ['amiodarone', 'verapamil', 'clarithromycin']);
-        this.interactionDatabase.set('metformin', ['contrast media', 'alcohol']);
-        this.interactionDatabase.set('levothyroxine', ['calcium supplements', 'iron supplements']);
+    private async initializeInteractionDatabase(): Promise<void> {
+        if (this.initialized) return;
+        
+        try {
+            // Common drug interactions with severity levels and descriptions
+            const interactionData: Array<{
+                drug: string, 
+                interactsWith: Array<{
+                    drug: string, 
+                    severity: InteractionSeverity, 
+                    description: string
+                }>
+            }> = [
+                {
+                    drug: 'warfarin',
+                    interactsWith: [
+                        { 
+                            drug: 'aspirin', 
+                            severity: InteractionSeverity.HIGH, 
+                            description: 'Increased risk of bleeding' 
+                        },
+                        { 
+                            drug: 'ibuprofen', 
+                            severity: InteractionSeverity.HIGH, 
+                            description: 'Increased risk of GI bleeding' 
+                        },
+                        { 
+                            drug: 'clopidogrel', 
+                            severity: InteractionSeverity.HIGH, 
+                            description: 'Increased risk of major bleeding' 
+                        },
+                        { 
+                            drug: 'naproxen', 
+                            severity: InteractionSeverity.MEDIUM, 
+                            description: 'May increase bleeding risk' 
+                        }
+                    ]
+                },
+                {
+                    drug: 'simvastatin',
+                    interactsWith: [
+                        { 
+                            drug: 'clarithromycin', 
+                            severity: InteractionSeverity.HIGH, 
+                            description: 'Increased risk of myopathy and rhabdomyolysis' 
+                        },
+                        { 
+                            drug: 'itraconazole', 
+                            severity: InteractionSeverity.HIGH, 
+                            description: 'Increased risk of myopathy and rhabdomyolysis' 
+                        },
+                        { 
+                            drug: 'cyclosporine', 
+                            severity: InteractionSeverity.MEDIUM, 
+                            description: 'Increased simvastatin exposure' 
+                        }
+                    ]
+                },
+                {
+                    drug: 'lisinopril',
+                    interactsWith: [
+                        { 
+                            drug: 'spironolactone', 
+                            severity: InteractionSeverity.MEDIUM, 
+                            description: 'Risk of hyperkalemia' 
+                        },
+                        { 
+                            drug: 'potassium supplements', 
+                            severity: InteractionSeverity.MEDIUM, 
+                            description: 'Risk of hyperkalemia' 
+                        }
+                    ]
+                },
+                {
+                    drug: 'digoxin',
+                    interactsWith: [
+                        { 
+                            drug: 'amiodarone', 
+                            severity: InteractionSeverity.MEDIUM, 
+                            description: 'Increased digoxin levels' 
+                        },
+                        { 
+                            drug: 'verapamil', 
+                            severity: InteractionSeverity.MEDIUM, 
+                            description: 'Increased digoxin levels' 
+                        },
+                        { 
+                            drug: 'clarithromycin', 
+                            severity: InteractionSeverity.MEDIUM, 
+                            description: 'Increased risk of digoxin toxicity' 
+                        }
+                    ]
+                },
+                {
+                    drug: 'metformin',
+                    interactsWith: [
+                        { 
+                            drug: 'contrast media', 
+                            severity: InteractionSeverity.MEDIUM, 
+                            description: 'Risk of lactic acidosis' 
+                        },
+                        { 
+                            drug: 'alcohol', 
+                            severity: InteractionSeverity.LOW, 
+                            description: 'Potential for hypoglycemia' 
+                        }
+                    ]
+                },
+                {
+                    drug: 'levothyroxine',
+                    interactsWith: [
+                        { 
+                            drug: 'calcium supplements', 
+                            severity: InteractionSeverity.LOW, 
+                            description: 'Reduced levothyroxine absorption' 
+                        },
+                        { 
+                            drug: 'iron supplements', 
+                            severity: InteractionSeverity.LOW, 
+                            description: 'Reduced levothyroxine absorption' 
+                        }
+                    ]
+                },
+                {
+                    drug: 'fluoxetine',
+                    interactsWith: [
+                        { 
+                            drug: 'tramadol', 
+                            severity: InteractionSeverity.MEDIUM, 
+                            description: 'Increased risk of serotonin syndrome' 
+                        },
+                        { 
+                            drug: 'monoamine oxidase inhibitors', 
+                            severity: InteractionSeverity.HIGH, 
+                            description: 'Risk of serotonin syndrome' 
+                        }
+                    ]
+                },
+                {
+                    drug: 'amoxicillin',
+                    interactsWith: [
+                        { 
+                            drug: 'allopurinol', 
+                            severity: InteractionSeverity.MEDIUM, 
+                            description: 'Increased risk of rash' 
+                        }
+                    ]
+                },
+                {
+                    drug: 'ciprofloxacin',
+                    interactsWith: [
+                        { 
+                            drug: 'antacids', 
+                            severity: InteractionSeverity.MEDIUM, 
+                            description: 'Reduced ciprofloxacin absorption' 
+                        },
+                        { 
+                            drug: 'calcium supplements', 
+                            severity: InteractionSeverity.MEDIUM, 
+                            description: 'Reduced ciprofloxacin absorption' 
+                        },
+                        { 
+                            drug: 'iron supplements', 
+                            severity: InteractionSeverity.MEDIUM, 
+                            description: 'Reduced ciprofloxacin absorption' 
+                        }
+                    ]
+                }
+            ];
+            
+            // Populate the interaction database
+            for (const drug of interactionData) {
+                const interactions = drug.interactsWith.map(interaction => ({
+                    drug: interaction.drug,
+                    severity: interaction.severity,
+                    description: interaction.description
+                }));
+                
+                this.interactionDatabase.set(drug.drug, interactions);
+            }
+            
+            this.initialized = true;
+            logger.info('Drug interaction database initialized successfully');
+        } catch (error) {
+            logger.error('Error initializing drug interaction database:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * Normalize medication names for more reliable matching
+     */
+    private normalizeMedicationName(medication: string): string {
+        return medication
+            .toLowerCase()
+            .trim()
+            // Remove common drug formulation suffixes
+            .replace(/(tablet|capsule|injection|solution|suspension|suppository|patch|cream|ointment|gel)s?$/i, '')
+            .replace(/\d+\s*mg$/i, '') // Remove dosage
+            .trim();
     }
     
     /**
@@ -79,54 +303,57 @@ export class DrugInteractionService {
     private checkKnownInteraction(
         medication: string,
         currentMedication: string
-    ): { severity: 'high' | 'medium' | 'low'; description: string; medications: string[] } | null {
-        // Normalize medication names for comparison
-        const normalizedMed = medication.toLowerCase().trim();
-        const normalizedCurrent = currentMedication.toLowerCase().trim();
+    ): DrugInteractionRisk | null {
+        // Get direct interactions from medication to currentMedication
+        const directInteractions = this.interactionDatabase.get(medication) || [];
+        const directInteraction = directInteractions.find(
+            interaction => this.medicationsMatch(interaction.drug, currentMedication)
+        );
         
-        // Check if either medication interacts with the other
-        const interactsWith = this.interactionDatabase.get(normalizedMed) || [];
-        const isInteractedBy = [];
-        
-        for (const [drug, interactions] of this.interactionDatabase.entries()) {
-            if (interactions.includes(normalizedMed) && drug === normalizedCurrent) {
-                isInteractedBy.push(drug);
-            }
+        if (directInteraction) {
+            return {
+                severity: directInteraction.severity,
+                description: directInteraction.description,
+                medications: [medication, currentMedication],
+                evidenceLevel: 'strong'
+            };
         }
         
-        if (interactsWith.includes(normalizedCurrent) || isInteractedBy.length > 0) {
-            return {
-                severity: this.determineInteractionSeverity(normalizedMed, normalizedCurrent),
-                description: `Potential interaction between ${medication} and ${currentMedication}`,
-                medications: [medication, currentMedication]
-            };
+        // Check for reverse interactions (currentMedication to medication)
+        for (const [drug, interactions] of this.interactionDatabase.entries()) {
+            if (this.medicationsMatch(drug, currentMedication)) {
+                const reverseInteraction = interactions.find(
+                    interaction => this.medicationsMatch(interaction.drug, medication)
+                );
+                
+                if (reverseInteraction) {
+                    return {
+                        severity: reverseInteraction.severity,
+                        description: reverseInteraction.description,
+                        medications: [currentMedication, medication],
+                        evidenceLevel: 'strong'
+                    };
+                }
+            }
         }
         
         return null;
     }
     
     /**
-     * Determine the severity of an interaction based on the medications involved
-     * In a real system, this would use comprehensive medical data
+     * Check if two medication names match, considering partial matches and generic/brand names
      */
-    private determineInteractionSeverity(med1: string, med2: string): 'high' | 'medium' | 'low' {
-        // Simple logic for demonstration
-        // High-risk combinations
-        const highRiskPairs = [
-            ['warfarin', 'aspirin'],
-            ['warfarin', 'clopidogrel'],
-            ['simvastatin', 'clarithromycin']
-        ];
+    private medicationsMatch(med1: string, med2: string): boolean {
+        // Exact match
+        if (med1 === med2) return true;
         
-        // Check if this combination is high risk
-        for (const [drug1, drug2] of highRiskPairs) {
-            if ((med1 === drug1 && med2 === drug2) || (med1 === drug2 && med2 === drug1)) {
-                return 'high';
-            }
-        }
+        // Look for substring match (for drugs with multiple forms)
+        if (med1.includes(med2) || med2.includes(med1)) return true;
         
-        // Default to medium risk for known interactions
-        return 'medium';
+        // TODO: In a production environment, use a proper medication database
+        // that maps brand names to generic names
+        
+        return false;
     }
     
     /**
@@ -136,20 +363,21 @@ export class DrugInteractionService {
     private async generateAIInteractionCheck(
         medication: string,
         currentMedications: string[]
-    ): Promise<Array<{ severity: 'high' | 'medium' | 'low'; description: string; medications: string[] }>> {
+    ): Promise<DrugInteractionRisk[]> {
         try {
             if (currentMedications.length === 0) {
                 return [];
             }
             
             const prompt = `
-                Please analyze potential drug interactions between ${medication} and the following medications:
+                As a clinical pharmacologist, please analyze potential drug interactions between ${medication} and the following medications:
                 ${currentMedications.join(', ')}
                 
-                For each potential interaction, provide:
-                1. The medications involved
-                2. The severity (high, medium, or low)
-                3. A brief description of the interaction
+                For each potential interaction, provide the following information in this format:
+                
+                Medication 1 | Medication 2 | Severity (high, medium, or low) | Description
+                
+                Only include interactions with clinical significance. If there are no interactions, state "No significant interactions found."
             `;
             
             const response = await aiService.analyzeMedicalReport(prompt);
@@ -169,41 +397,79 @@ export class DrugInteractionService {
         response: string,
         medication: string,
         currentMedications: string[]
-    ): Array<{ severity: 'high' | 'medium' | 'low'; description: string; medications: string[] }> {
-        const interactions: Array<{
-            severity: 'high' | 'medium' | 'low';
-            description: string;
-            medications: string[];
-        }> = [];
+    ): DrugInteractionRisk[] {
+        const interactions: DrugInteractionRisk[] = [];
         
         try {
-            // Split the response by sections or lines
-            const lines = response.split('\n').filter(line => line.trim());
+            // Check if AI reported no interactions
+            if (response.toLowerCase().includes('no significant interactions') || 
+                response.toLowerCase().includes('no interactions found')) {
+                return [];
+            }
             
-            for (const line of lines) {
-                // Look for mentions of medications and severity
-                for (const currentMed of currentMedications) {
-                    if (line.toLowerCase().includes(currentMed.toLowerCase()) &&
-                        line.toLowerCase().includes(medication.toLowerCase())) {
+            // Try to parse table format first
+            const tablePattern = /([^\|\n]+)\s*\|\s*([^\|\n]+)\s*\|\s*([^\|\n]+)\s*\|\s*([^\|\n]+)/g;
+            let match;
+            
+            while ((match = tablePattern.exec(response)) !== null) {
+                // Extract the components
+                const [_, drug1, drug2, severityText, description] = match;
+                
+                if (drug1 && drug2 && severityText && description) {
+                    // Determine interaction severity
+                    let severity: InteractionSeverity;
+                    const severityLower = severityText.trim().toLowerCase();
+                    
+                    if (severityLower.includes('high') || severityLower.includes('severe')) {
+                        severity = InteractionSeverity.HIGH;
+                    } else if (severityLower.includes('low') || severityLower.includes('mild')) {
+                        severity = InteractionSeverity.LOW;
+                    } else {
+                        severity = InteractionSeverity.MEDIUM;
+                    }
+                    
+                    interactions.push({
+                        severity,
+                        description: description.trim(),
+                        medications: [drug1.trim(), drug2.trim()],
+                        evidenceLevel: 'moderate'
+                    });
+                }
+            }
+            
+            // If table parsing failed, try alternative parsing
+            if (interactions.length === 0) {
+                // Split by lines or sections
+                const lines = response.split(/\n{2,}/).flatMap(section => section.split('\n'));
+                
+                for (const line of lines) {
+                    // Look for mentions of severity
+                    const severityMatch = line.match(/\b(high|medium|low|severe|mild|moderate)\b\s+(?:risk|severity|interaction)/i);
+                    
+                    if (severityMatch) {
+                        // Find which medications this line is talking about
+                        const meds = this.findMedicationsInText(line, [medication, ...currentMedications]);
                         
-                        // Determine severity from the text
-                        let severity: 'high' | 'medium' | 'low' = 'medium';
-                        if (line.toLowerCase().includes('high') || line.toLowerCase().includes('severe') || 
-                            line.toLowerCase().includes('dangerous')) {
-                            severity = 'high';
-                        } else if (line.toLowerCase().includes('low') || line.toLowerCase().includes('mild') || 
-                                 line.toLowerCase().includes('minimal')) {
-                            severity = 'low';
+                        if (meds.length >= 2) {
+                            // Determine severity
+                            let severity: InteractionSeverity;
+                            const severityText = severityMatch[1].toLowerCase();
+                            
+                            if (severityText.includes('high') || severityText.includes('severe')) {
+                                severity = InteractionSeverity.HIGH;
+                            } else if (severityText.includes('low') || severityText.includes('mild')) {
+                                severity = InteractionSeverity.LOW;
+                            } else {
+                                severity = InteractionSeverity.MEDIUM;
+                            }
+                            
+                            interactions.push({
+                                severity,
+                                description: line.trim(),
+                                medications: [meds[0], meds[1]],
+                                evidenceLevel: 'weak'
+                            });
                         }
-                        
-                        interactions.push({
-                            severity,
-                            description: line.trim(),
-                            medications: [medication, currentMed]
-                        });
-                        
-                        // Break after finding an interaction for this medication
-                        break;
                     }
                 }
             }
@@ -213,5 +479,31 @@ export class DrugInteractionService {
             logger.error('Error parsing AI interaction response:', error);
             return [];
         }
+    }
+    
+    /**
+     * Find which medications from a list are mentioned in a text
+     */
+    private findMedicationsInText(text: string, medications: string[]): string[] {
+        const mentionedMeds: string[] = [];
+        const normalizedText = text.toLowerCase();
+        
+        for (const med of medications) {
+            if (normalizedText.includes(med.toLowerCase())) {
+                mentionedMeds.push(med);
+            }
+        }
+        
+        return mentionedMeds;
+    }
+    
+    /**
+     * Update the interaction database with new interaction data
+     * This would typically be called on a schedule to keep the database up to date
+     */
+    public async updateInteractionDatabase(): Promise<void> {
+        // In a real application, this would fetch the latest interaction data
+        // from a medical API or database
+        logger.info('Drug interaction database update scheduled');
     }
 } 
