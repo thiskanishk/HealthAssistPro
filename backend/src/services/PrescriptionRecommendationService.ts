@@ -4,7 +4,7 @@ import medicationAnalyzer, { ParsedDosage } from '../utils/medicationAnalyzer';
 import { MedicationSafetyMonitor, SafetyAlert } from './MedicationSafetyMonitor';
 import { IMedication } from '../models/Medication';
 import logger from '../utils/logger';
-import { IPatient } from '../models/Patient';
+import { IPatient, PatientData } from '../models/Patient';
 
 // Base error class for prescription recommendation errors
 export class PrescriptionRecommendationError extends Error {

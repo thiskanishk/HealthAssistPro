@@ -1,6 +1,38 @@
 import mongoose, { Document, Schema, Model } from 'mongoose';
 import { IUser } from './User';
 
+/**
+ * PatientData interface for use in various services
+ */
+export interface PatientData {
+  age: number;
+  gender: string;
+  symptoms: string[];
+  medicalHistory: Array<{
+    condition: string;
+    diagnosedDate: Date;
+    status: 'active' | 'resolved' | 'managed';
+    notes?: string;
+  }>;
+  medications: Array<{
+    name: string;
+    dosage: string;
+    frequency: string;
+    startDate: Date;
+    endDate?: Date;
+  }>;
+  allergies: string[];
+  vitals?: {
+    height?: number;
+    weight?: number;
+    bloodPressure?: string;
+    heartRate?: number;
+    temperature?: number;
+    respiratoryRate?: number;
+    oxygenSaturation?: number;
+  };
+}
+
 export interface IAiDiagnosis {
     date: Date;
     symptoms: string[];

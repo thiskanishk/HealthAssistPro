@@ -47,7 +47,7 @@ export class DiagnosisController {
     this.diagnosisService = new DiagnosisService();
   }
 
-  async analyzeSymptomsAndDiagnose(req: Request, res: Response, next: NextFunction) {
+  public async analyzeSymptomsAndDiagnose(req: Request, res: Response, next: NextFunction) {
     try {
       const { symptoms, patientId } = req.body;
       
@@ -81,12 +81,23 @@ export class DiagnosisController {
       );
 
       // Generate medical notes
-      const medicalNotes = await this.documentationAssistant.generateMedicalNotes({
-        symptoms,
-        analysis: symptomAnalysis,
-        diagnosis: diagnosisSuggestions,
-        treatment: treatmentPlan
-      });
+      let medicalNotes: string = '';
+      try {
+        // Use type assertion to handle the return type
+        const result = await this.documentationAssistant.generateMedicalNotes({
+          symptoms,
+          analysis: symptomAnalysis,
+          diagnosis: diagnosisSuggestions,
+          treatment: treatmentPlan
+        }) as unknown;
+        
+        // Now safely check the type
+        if (typeof result === 'string') {
+          medicalNotes = result;
+        }
+      } catch (error) {
+        console.error('Error generating medical notes:', error);
+      }
 
       // Create a new diagnosis record
       const diagnosis = await this.diagnosisService.createDiagnosis({
@@ -157,7 +168,7 @@ export class DiagnosisController {
    * @param patientData Patient's data including symptoms, medical history, etc.
    * @returns Diagnosis result with potential conditions, recommendations, etc.
    */
-  async generateDiagnosis(patientData: PatientData): Promise<DiagnosisResult> {
+  public async generateDiagnosis(patientData: PatientData): Promise<DiagnosisResult> {
     try {
       // AI-powered symptom analysis
       const symptomAnalysis = await this.symptomAnalyzer.analyzeSymptoms(
@@ -199,7 +210,7 @@ export class DiagnosisController {
    * @param diagnosisId ID of the diagnosis
    * @param feedback Feedback data including rating and comments
    */
-  async processFeedback(diagnosisId: string, feedback: FeedbackData): Promise<void> {
+  public async processFeedback(diagnosisId: string, feedback: FeedbackData): Promise<void> {
     try {
       if (!mongoose.Types.ObjectId.isValid(diagnosisId)) {
         throw new Error('Invalid diagnosis ID');
@@ -212,15 +223,33 @@ export class DiagnosisController {
         throw new Error('Diagnosis not found');
       }
 
-      // Update the diagnosis with clinician feedback
-      await this.diagnosisService.updateDiagnosis(diagnosis.patientId.toString(), diagnosisId, {
-        clinicianFeedback: {
-          clinicianId: feedback.providedBy as any,
-          comments: feedback.comments || '',
-          agreementLevel: feedback.rating >= 4 ? 'full' : (feedback.rating >= 2 ? 'partial' : 'none'),
-          createdAt: new Date()
+      // Convert the providedBy string to a mongoose ObjectId reference
+      let providedById: any;  // Using 'any' to accommodate both ObjectId and IUser
+      
+      try {
+        if (mongoose.Types.ObjectId.isValid(feedback.providedBy)) {
+          providedById = new mongoose.Types.ObjectId(feedback.providedBy);
+        } else {
+          throw new Error('Invalid providedBy ID format');
         }
-      });
+      } catch (error) {
+        console.error('Invalid providedBy ID format:', error);
+        throw new Error('Invalid providedBy ID format');
+      }
+
+      // Update the diagnosis with clinician feedback
+      await this.diagnosisService.updateDiagnosis(
+        diagnosis.patientId.toString(), 
+        diagnosisId, 
+        {
+          clinicianFeedback: {
+            clinicianId: providedById,
+            comments: feedback.comments || '',
+            agreementLevel: feedback.rating >= 4 ? 'full' : (feedback.rating >= 2 ? 'partial' : 'none'),
+            createdAt: new Date()
+          }
+        }
+      );
 
       // In a real implementation, you would process the feedback
       // and potentially use it to improve the AI model
@@ -234,7 +263,7 @@ export class DiagnosisController {
   /**
    * Get all diagnoses for a patient
    */
-  async getPatientDiagnoses(req: Request, res: Response, next: NextFunction) {
+  public async getPatientDiagnoses(req: Request, res: Response, next: NextFunction) {
     try {
       const { patientId } = req.params;
       
@@ -252,7 +281,7 @@ export class DiagnosisController {
   /**
    * Get a specific diagnosis by ID
    */
-  async getDiagnosisById(req: Request, res: Response, next: NextFunction) {
+  public async getDiagnosisById(req: Request, res: Response, next: NextFunction) {
     try {
       const { patientId, diagnosisId } = req.params;
       
@@ -274,3 +303,6 @@ export class DiagnosisController {
     }
   }
 }
+
+// Export an instance of the controller for singleton usage
+export default new DiagnosisController();

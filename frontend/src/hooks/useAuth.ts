@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, AuthState } from '../types';
 import { apiService } from '../services/api';
+import axios from 'axios';
 
 interface UseAuthReturn {
   user: User | null;
@@ -114,7 +115,7 @@ export const useAuth = (): UseAuthReturn => {
     }
   }, [navigate]);
 
-  // Check auth status on mount and token change
+  // Check auth status on mount
   useEffect(() => {
     const validateToken = async () => {
       const token = localStorage.getItem('token');
@@ -124,8 +125,17 @@ export const useAuth = (): UseAuthReturn => {
       }
 
       try {
-        const response = await apiService.api.get('/auth/validate');
-        if (response.data.user) {
+        setAuthState(prev => ({ ...prev, isLoading: true }));
+        
+        // Make a direct axios call since we don't have a dedicated method in apiService
+        const baseURL = process.env.REACT_APP_API_URL || '/api';
+        const response = await axios.get(`${baseURL}/auth/validate`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        
+        if (response.data && response.data.user) {
           setAuthState({
             user: response.data.user,
             token,
@@ -133,14 +143,32 @@ export const useAuth = (): UseAuthReturn => {
             isLoading: false,
             error: null,
           });
+        } else {
+          // Token is invalid or user data missing
+          localStorage.removeItem('token');
+          setAuthState({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+            isLoading: false,
+            error: null,
+          });
         }
       } catch (error) {
-        logout();
+        // Clear token on error
+        localStorage.removeItem('token');
+        setAuthState({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          isLoading: false,
+          error: 'Session expired. Please login again.',
+        });
       }
     };
 
     validateToken();
-  }, [logout]);
+  }, []); // Empty dependency array to run only on mount
 
   return {
     user: authState.user,

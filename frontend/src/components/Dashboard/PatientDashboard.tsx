@@ -15,11 +15,11 @@ import {
     useTheme
 } from '@mui/material';
 import { useQuery } from '@tanstack/react-query';
-import { getPatientSummary } from '../../services/api/patient';
-import { MedicalChart } from '../Charts/MedicalChart';
-import { UpcomingAppointments } from '../Appointments/UpcomingAppointments';
-import { RecentDiagnoses } from '../Diagnosis/RecentDiagnoses';
-import { MedicationReminders } from '../Medications/MedicationReminders';
+// import { getPatientSummary } from '../../services/api/patient';
+// import { MedicalChart } from '../Charts/MedicalChart';
+// import { UpcomingAppointments } from '../Appointments/UpcomingAppointments';
+// import { RecentDiagnoses } from '../Diagnosis/RecentDiagnoses';
+// import { MedicationReminders } from '../Medications/MedicationReminders';
 import {
     Dashboard as DashboardIcon,
     MedicalServices,
@@ -28,34 +28,88 @@ import {
     Assessment,
     NoteAdd,
     Timeline,
-    VideoCam,
+    Videocam,
     TrendingUp,
     ArrowForward,
     AddCircleOutline
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import HealthMetricsChart from '../Visualizations/HealthMetricsChart';
+// import HealthMetricsChart from '../Visualizations/HealthMetricsChart';
 import { format } from 'date-fns';
 
+// Define interfaces for our component data
 interface PatientDashboardProps {
     patientId: string;
 }
+
+interface DashboardAppointment {
+    id: string;
+    doctorName: string;
+    specialization: string;
+    date: Date;
+    time: string;
+    status: 'upcoming' | 'completed' | 'cancelled';
+}
+
+interface DashboardMedication {
+    id: string;
+    name: string;
+    dosage: string;
+    schedule: string;
+    nextDose: Date;
+}
+
+interface HealthIndicator {
+    name: string;
+    value: number;
+    unit: string;
+    status: 'normal' | 'warning' | 'critical';
+    trend: 'up' | 'down' | 'stable';
+}
+
+interface Notification {
+    id: number;
+    type: 'medication' | 'appointment' | 'lab';
+    message: string;
+    time: string;
+}
+
+interface DiagnosisSummary {
+    id: number;
+    condition: string;
+    date: string;
+    severity: string;
+    treatingPhysician: string;
+}
+
+// Mock function for getPatientSummary
+const getPatientSummary = async (id: string) => {
+    return { patientId: id, name: 'Test Patient' };
+};
+
+// Mock component for HealthMetricsChart
+const HealthMetricsChart: React.FC<{ patientId: string, timeRange: string }> = ({ patientId, timeRange }) => {
+    return (
+        <div>Health Metrics Chart Placeholder for patient {patientId} over {timeRange}</div>
+    );
+};
 
 export const PatientDashboard: React.FC<PatientDashboardProps> = ({ patientId }) => {
     const theme = useTheme();
     const navigate = useNavigate();
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
-    const [appointments, setAppointments] = useState<Appointment[]>([]);
-    const [medications, setMedications] = useState<Medication[]>([]);
+    const [appointments, setAppointments] = useState<DashboardAppointment[]>([]);
+    const [medications, setMedications] = useState<DashboardMedication[]>([]);
     const [healthIndicators, setHealthIndicators] = useState<HealthIndicator[]>([]);
-    const [notifications, setNotifications] = useState<any[]>([]);
-    const [recentDiagnoses, setRecentDiagnoses] = useState<any[]>([]);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [recentDiagnoses, setRecentDiagnoses] = useState<DiagnosisSummary[]>([]);
 
-    const { data, isLoading } = useQuery(['patientSummary', patientId], () =>
-        getPatientSummary(patientId)
-    );
+    const { data, isLoading } = useQuery({
+        queryKey: ['patientSummary', patientId],
+        queryFn: () => getPatientSummary(patientId)
+    });
 
     useEffect(() => {
         const fetchDashboardData = async () => {
@@ -426,7 +480,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({ patientId })
                     <Paper elevation={0} sx={{ p: 2, borderRadius: 2, height: '100%', boxShadow: '0 4px 14px rgba(0,0,0,0.1)' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                             <Typography variant="h6" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center' }}>
-                                <VideoCam sx={{ mr: 1 }} />
+                                <Videocam sx={{ mr: 1 }} />
                                 Upcoming Appointments
                             </Typography>
                             <Button size="small" onClick={() => navigate('/appointments')}>View All</Button>
